@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 
+// ─── CONFIG ─────────────────────────────────────────────────────────────────
+const STREAM_API_URL = import.meta.env.VITE_STREAM_API_URL || "http://localhost:3000";
+// ─────────────────────────────────────────────────────────────────────────────
+
 const EMPTY_TRACK = {
   id: "empty",
   title: "Esperando canción",
@@ -141,7 +145,7 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
     setError(null);
     audio.pause();
     audio.muted = true;
-    audio.src = `http://localhost:3000/api/stream?v=${track.youtubeId}`;
+    audio.src = `${STREAM_API_URL}/api/stream?v=${track.youtubeId}`;
     audio.load();
     try {
       await audio.play();
@@ -160,7 +164,7 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
     setError(null);
     audio.pause();
     audio.muted = true;
-    audio.src = `http://localhost:3000/api/stream?v=${track.youtubeId}`;
+    audio.src = `${STREAM_API_URL}/api/stream?v=${track.youtubeId}`;
     audio.load();
     let retryId = null;
     const play = async () => {
@@ -206,7 +210,14 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
   const bg = "#000";
 
   return (
-    <div style={{ minHeight: "100vh", background: bg, overflow: "hidden", position: "relative", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+    <div style={{ 
+      height: "100vh", 
+      background: bg, 
+      overflow: "hidden", 
+      position: "fixed", 
+      inset: 0, 
+      fontFamily: "system-ui, -apple-system, sans-serif" 
+    }}>
 
       {lastNewTrack && (
         <NewBadge track={lastNewTrack} onDone={() => setLastNewTrack(null)} />
