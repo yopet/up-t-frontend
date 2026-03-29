@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 
 // ─── CONFIG ─────────────────────────────────────────────────────────────────
-// Pega aquí tu clave de YouTube Data API v3, o ingrésala en pantalla
-const DEFAULT_API_KEY = "";
+// Toma la clave de YouTube Data API v3 desde .env (VITE_YT_API_KEY).
+const DEFAULT_API_KEY = import.meta.env.VITE_YT_API_KEY || "";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const MOCK_NOW = {
@@ -78,7 +78,7 @@ function ApiKeySetup({ onSave }) {
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1db954" strokeWidth="1.5" strokeLinecap="round" style={{ marginBottom: 20 }}>
         <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
       </svg>
-      <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Configura DomiLite</div>
+      <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Configura tu API Key</div>
       <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 28, textAlign: "center", lineHeight: 1.6 }}>
         Para buscar en YouTube Music necesitas<br />una YouTube Data API v3 Key
       </div>
@@ -237,7 +237,7 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
         background: bg, zIndex: 10, borderBottom: `1px solid ${border}`,
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-          <div style={{ fontSize: 10, color: muted, letterSpacing: "0.14em", fontWeight: 600 }}>GASTROBAR DOMILITE</div>
+          <div style={{ fontSize: 10, color: muted, letterSpacing: "0.14em", fontWeight: 600 }}>GASTROBAR</div>
           <button
             onClick={() => { localStorage.removeItem("yt_api_key"); setApiKey(""); }}
             style={{ background: "none", border: "none", color: muted2, fontSize: 10, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.08em" }}

@@ -1,23 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 
-// ... (Mantenemos DEFAULT_TRACKS, fmt, QRCode, SpectrumBars, NewBadge y parseDuration exactamente igual) ...
-const DEFAULT_TRACKS = [
-  {
-    id: "default-1", title: "Provenza", artist: "Karol G", album: "MSB",
-    duration: 210, color: "#ff99c8", img: "https://picsum.photos/seed/provenza/600/600",
-    qr: "https://up-t.app/scan", youtubeId: "PjsoP-O9EtQ",
-  },
-  {
-    id: "default-2", title: "Gasolina", artist: "Daddy Yankee", album: "Barrio Fino",
-    duration: 192, color: "#ff4d00", img: "https://picsum.photos/seed/gasolina/600/600",
-    qr: "https://up-t.app/scan", youtubeId: "r7GBGZ004vQ",
-  },
-  {
-    id: "default-3", title: "Classy 101", artist: "Feid x Young Miko", album: "Single",
-    duration: 195, color: "#00ff40", img: "https://picsum.photos/seed/classy/600/600",
-    qr: "https://up-t.app/scan", youtubeId: "gWK0BYTU7n0",
-  },
-];
+const EMPTY_TRACK = {
+  id: "empty",
+  title: "Esperando canción",
+  artist: "Pide una canción desde el panel de cliente",
+  album: "Up-T",
+  duration: 180,
+  color: "#1db954",
+  img: "https://picsum.photos/seed/placeholder/600/600",
+  qr: "https://up-t.app/scan",
+  youtubeId: "",
+};
 
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
@@ -98,10 +91,11 @@ const parseDuration = (value) => {
   return Number(value) || 0;
 };
 
-// --- COMPONENTE PRINCIPAL ---
-export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrackChange, volume = 50 }) {
-  const TRACKS = queue.length > 0 ? queue : DEFAULT_TRACKS;
-  const safeIdx = Math.min(currentIdx, TRACKS.length - 1);
+export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrackChange, volume = 50, currentMessage, message_author }) {
+  const hasQueue = queue.length > 0;
+  const safeIdx = hasQueue ? Math.min(currentIdx, queue.length - 1) : 0;
+  const track = hasQueue ? queue[safeIdx] : EMPTY_TRACK;
+  const visibleTracks = hasQueue ? queue.slice(safeIdx, safeIdx + 4) : [EMPTY_TRACK];
 
   const [progress, setProgress] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
@@ -113,17 +107,18 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
   const prevQueueLen = useRef(queue.length);
   const audioRef = useRef(null);
 
-  const track = TRACKS[safeIdx] || TRACKS[0];
   const trackDuration = parseDuration(track.duration);
-  const visibleTracks = TRACKS.slice(safeIdx, safeIdx + 4);
 
-  // NUEVO: Sincronizar volumen con el elemento audio
   useEffect(() => {
     if (audioRef.current) {
-      // HTML5 Audio volume va de 0.0 a 1.0
       audioRef.current.volume = volume / 100;
+      audioRef.current.muted = volume === 0;
     }
   }, [volume]);
+
+  useEffect(() => {
+    setProgress(0);
+  }, [track.id]);
 
   useEffect(() => {
     if (queue.length > prevQueueLen.current) {
@@ -150,8 +145,8 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
     audio.load();
     try {
       await audio.play();
-      audio.muted = false;
-      audio.volume = volume / 100; // Aplicar volumen al iniciar
+      audio.muted = volume === 0;
+      audio.volume = Math.max(0, Math.min(1, volume / 100));
       setIsStarted(true);
     } catch (e) {
       setError("Toca para iniciar la reproducción");
@@ -171,15 +166,15 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
     const play = async () => {
       try {
         await audio.play();
-        audio.muted = false;
-        audio.volume = volume / 100; // Asegurar volumen al cambiar pista
+        audio.muted = volume === 0;
+        audio.volume = Math.max(0, Math.min(1, volume / 100));
         setError(null);
       } catch {
         retryId = setTimeout(async () => {
           try { 
             await audio.play(); 
-            audio.muted = false; 
-            audio.volume = volume / 100;
+            audio.muted = volume === 0; 
+            audio.volume = Math.max(0, Math.min(1, volume / 100));
           }
           catch { setError("Error de conexión con el servidor"); }
         }, 1500);
@@ -192,29 +187,20 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
   useEffect(() => {
     if (!isStarted) return;
     const id = setInterval(() => {
-      setProgress((p) => {
-        const next = p + 100 / trackDuration / 10;
-        if (next >= 100) {
-          setTransitioning(true);
-          setTimeout(() => {
-            const nextIdx = safeIdx + 1 < TRACKS.length ? safeIdx + 1 : 0;
-            if (onTrackChange) onTrackChange(nextIdx);
-            if (onTrackEnd) onTrackEnd();
-            setProgress(0);
-            setTimeout(() => setTransitioning(false), 800);
-          }, 600);
-          return 100;
-        }
-        return next;
-      });
       setTick((t) => t + 1);
     }, 100);
     return () => clearInterval(id);
-  }, [trackDuration, isStarted, safeIdx, TRACKS.length]);
+  }, [isStarted]);
 
-  useEffect(() => {
-    setProgress(0);
-  }, [safeIdx]);
+  const handleTimeUpdate = () => {
+    if (audioRef.current && audioRef.current.duration) {
+      setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+    }
+  };
+
+  const handleEnded = () => {
+    if (onTrackEnd) onTrackEnd();
+  };
 
   const elapsed = Math.floor((progress / 100) * (trackDuration || 200));
   const bg = "#000";
@@ -226,7 +212,6 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
         <NewBadge track={lastNewTrack} onDone={() => setLastNewTrack(null)} />
       )}
 
-      {/* Fondos y Layout (Mantenemos exactamente igual que tu código original) */}
       <div style={{
         position: "fixed", inset: "-60px",
         backgroundImage: `url(${track.img})`,
@@ -313,7 +298,7 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
         <div style={{
           display: "flex", flexDirection: "column", gap: "2rem",
           width: "clamp(180px, 20vw, 280px)", flexShrink: 0,
-          maxHeight: "calc(100vh - 8vh)", overflowY: "auto",
+          maxHeight: "calc(100vh - 8vh)", overflowY: "hidden",
         }}>
 
           <div>
@@ -410,6 +395,72 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
         </div>
       </div>
 
+     {/* OVERLAY DE MENSAJES ESTILO PANTALLA COMPLETA — UP-T */}
+      {currentMessage && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 2000,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          background: "rgba(0,0,0,0.92)", backdropFilter: "blur(25px)",
+          animation: "fadeIn 0.6s ease-out", textAlign: "center", padding: "5vw"
+        }}>
+          {/* Cabecera */}
+          <div style={{ 
+            fontSize: "clamp(0.8rem, 2vw, 1.2rem)", 
+            color: track.color, 
+            fontWeight: 800, 
+            letterSpacing: "0.5em", 
+            marginBottom: "3vh", 
+            textTransform: "uppercase", 
+            opacity: 0.9
+          }}>
+            ✨ Pedido Especial ✨
+          </div>
+
+          {/* El Mensaje Principal */}
+          <div style={{ 
+            fontSize: "clamp(2.5rem, 6vw, 5.5rem)", 
+            fontWeight: 900, 
+            color: "#fff", 
+            lineHeight: 1.1,
+            textShadow: `0 0 50px ${track.color}66`,
+            maxWidth: "85vw", 
+            animation: "slideUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)"
+          }}>
+            {currentMessage}
+          </div>
+
+          {/* Autor del Mensaje — Lógica Dinámica */}
+          <div style={{ 
+            marginTop: "3vh",
+            fontSize: "clamp(1.2rem, 3vw, 2.2rem)",
+            color: track.color, // Usamos el color de la canción para el nombre
+            fontWeight: 600,
+            fontStyle: "italic",
+            animation: "fadeIn 1.2s ease",
+            opacity: 0.9
+          }}>
+            — {message_author ? `De: ${message_author}` : "De: Un cliente especial"}
+          </div>
+
+          {/* Separador */}
+          <div style={{ 
+            marginTop: "5vh", 
+            height: "2px", 
+            width: "150px", 
+            background: `linear-gradient(to right, transparent, ${track.color}, transparent)`, 
+            borderRadius: "99px" 
+          }} />
+
+          {/* Miniatura de la canción actual */}
+          <div style={{ marginTop: "6vh", display: "flex", alignItems: "center", gap: 15, opacity: 0.5 }}>
+            <img src={track.img} style={{ width: 45, height: 45, borderRadius: 8, boxShadow: `0 0 20px ${track.color}44` }} alt="" />
+            <div style={{ textAlign: "left" }}>
+              <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{track.title}</div>
+              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>{track.artist}</div>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{
         position: "fixed", bottom: 0, left: 0, right: 0, height: 3, zIndex: 20,
         background: `linear-gradient(to right, transparent 0%, ${track.color}88 20%, ${track.color} 50%, ${track.color}88 80%, transparent 100%)`,
@@ -433,14 +484,17 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
         </div>
       )}
 
-      {/* ELEMENTO AUDIO CON REF Y VOLUMEN INICIAL */}
       <audio 
         ref={audioRef} 
         style={{ display: "none" }} 
         preload="auto" 
+        onTimeUpdate={handleTimeUpdate}
+        onEnded={handleEnded}
       />
 
       <style>{`
+        ::-webkit-scrollbar { display: none; }
+        * { -ms-overflow-style: none; scrollbar-width: none; }
         @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: 0.5; transform: scale(0.8) } }
