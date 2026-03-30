@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 const STREAM_API_URL = import.meta.env.VITE_STREAM_API_URL || "http://localhost:3000";
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Detectar la URL base del despliegue automáticamente
 const SCAN_URL = typeof window !== "undefined" ? `${window.location.origin}/scan` : "/scan";
 
 const EMPTY_TRACK = {
@@ -79,7 +78,10 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
   const [qrReady, setQrReady] = useState(false);
   const [isStarted, setIsStarted] = useState(false);
   const [error, setError] = useState(null);
+  
   const audioRef = useRef(null);
+  const nextAudioRef = useRef(null); // Ref para precarga
+  const [preloadedId, setPreloadedId] = useState(null); // Control de qué ID se precargó
 
   const trackDuration = parseDuration(track.duration);
 
@@ -125,10 +127,14 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
     if (!isStarted || !audioRef.current) return;
     const audio = audioRef.current;
     setError(null);
+
+    // Si la canción ya estaba precargada, simplemente la movemos al audio principal
+    // Para simplificar en este componente, reiniciamos el src pero podrías intercambiar refs
     audio.pause();
     audio.muted = true;
     audio.src = `${STREAM_API_URL}/api/stream?v=${track.youtubeId}`;
     audio.load();
+    
     let retryId = null;
     const play = async () => {
       try {
@@ -136,6 +142,7 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
         audio.muted = volume === 0;
         audio.volume = Math.max(0, Math.min(1, volume / 100));
         setError(null);
+        setPreloadedId(null); // Reset precarga al cambiar de canción
       } catch {
         retryId = setTimeout(async () => {
           try { 
@@ -161,8 +168,21 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
 
   const handleTimeUpdate = () => {
     if (audioRef.current && trackDuration > 0) {
-      const currentProgress = (audioRef.current.currentTime / trackDuration) * 100;
+      const currentTime = audioRef.current.currentTime;
+      const currentProgress = (currentTime / trackDuration) * 100;
       setProgress(Math.min(100, currentProgress));
+
+      // LÓGICA DE PRECARGA: Si faltan 30 seg y hay una siguiente canción
+      const remainingTime = trackDuration - currentTime;
+      if (remainingTime < 30 && queue[safeIdx + 1] && preloadedId !== queue[safeIdx + 1].youtubeId) {
+        const nextTrack = queue[safeIdx + 1];
+        console.log("Precargando:", nextTrack.title);
+        setPreloadedId(nextTrack.youtubeId);
+        if (nextAudioRef.current) {
+          nextAudioRef.current.src = `${STREAM_API_URL}/api/stream?v=${nextTrack.youtubeId}`;
+          nextAudioRef.current.load();
+        }
+      }
     }
   };
 
@@ -404,7 +424,7 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
           <div style={{ 
             marginTop: "3vh",
             fontSize: "clamp(1.2rem, 3vw, 2.2rem)",
-            color: track.color, // Usamos el color de la canción para el nombre
+            color: track.color, 
             fontWeight: 600,
             fontStyle: "italic",
             animation: "fadeIn 1.2s ease",
@@ -455,12 +475,21 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
         </div>
       )}
 
+      {/* REPRODUCTOR PRINCIPAL */}
       <audio 
         ref={audioRef} 
         style={{ display: "none" }} 
         preload="auto" 
         onTimeUpdate={handleTimeUpdate}
         onEnded={handleEnded}
+      />
+
+      {/* REPRODUCTOR DE PRECARGA (OCULTO) */}
+      <audio 
+        ref={nextAudioRef} 
+        style={{ display: "none" }} 
+        preload="auto" 
+        muted={true}
       />
 
       <style>{`
