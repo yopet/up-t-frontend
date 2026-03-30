@@ -38,6 +38,7 @@ export default function AdminView({
   
   // Estado local para que el volumen se mueva al instante en la UI
   const [localVol, setLocalVol] = useState(volume);
+  
 
   // Sincronizar el volumen local si cambia desde afuera (otra pestaña o DB)
   useEffect(() => {
