@@ -39,7 +39,6 @@ function SpectrumBars({ color, tick, isBuffering }) {
     <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 48, width: "100%" }}>
       {Array.from({ length: bars }).map((_, i) => {
         const t = tick / 8 + i * 0.38;
-        // Si está cargando, forzamos altura mínima
         const h = isBuffering ? 0.08 : Math.abs(Math.sin(t) * 0.5 + Math.sin(t * 1.9 + 1) * 0.3 + Math.sin(t * 0.4) * 0.2);
         return (
           <div key={i} style={{
@@ -110,7 +109,7 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
     if (!isStarted || !audioRef.current) return;
     const audio = audioRef.current;
     setError(null);
-    setIsBuffering(true); // Reiniciar estado de carga al cambiar canción
+    setIsBuffering(true);
 
     audio.pause();
     audio.muted = true;
@@ -157,9 +156,14 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
       const currentProgress = (currentTime / trackDuration) * 100;
       setProgress(Math.min(100, currentProgress));
 
-      const remainingTime = trackDuration - currentTime;
-      if (remainingTime < 30 && queue[safeIdx + 1] && preloadedId !== queue[safeIdx + 1].youtubeId) {
-        const nextTrack = queue[safeIdx + 1];
+      // LÓGICA: Solo precarga si han pasado 6s de sonido real (sin buffering activo)
+      const nextTrack = queue[safeIdx + 1];
+      if (
+        !isBuffering &&               // Debe estar sonando (no cargando)
+        currentTime >= 6 &&           // Deben haber pasado al menos 6 segundos
+        nextTrack &&                  // Debe existir una siguiente canción
+        preloadedId !== nextTrack.youtubeId // Evita peticiones infinitas
+      ) {
         setPreloadedId(nextTrack.youtubeId);
         if (nextAudioRef.current) {
           nextAudioRef.current.src = `${STREAM_API_URL}/api/stream?v=${nextTrack.youtubeId}`;
@@ -177,14 +181,7 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
   const bg = "#000";
 
   return (
-    <div style={{ 
-      height: "100vh", 
-      background: bg, 
-      overflow: "hidden", 
-      position: "fixed", 
-      inset: 0, 
-      fontFamily: "system-ui, -apple-system, sans-serif" 
-    }}>
+    <div style={{ height: "100vh", background: bg, overflow: "hidden", position: "fixed", inset: 0, fontFamily: "system-ui, -apple-system, sans-serif" }}>
 
       <div style={{
         position: "fixed", inset: "-60px",
@@ -221,11 +218,8 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
                 transition: "filter 0.5s ease"
               }} />
             
-            {/* SPINNER DE CARGA */}
             {isBuffering && track.youtubeId && (
-              <div style={{
-                position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 5
-              }}>
+              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 5 }}>
                 <div className="loader" style={{ borderTopColor: track.color }} />
               </div>
             )}
@@ -281,11 +275,7 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
         </div>
 
         {/* DERECHA — Cola + QR */}
-        <div style={{
-          display: "flex", flexDirection: "column", gap: "2rem",
-          width: "clamp(180px, 20vw, 280px)", flexShrink: 0,
-          maxHeight: "calc(100vh - 8vh)", overflowY: "auto",
-        }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "2rem", width: "clamp(180px, 20vw, 280px)", flexShrink: 0, maxHeight: "calc(100vh - 8vh)", overflowY: "auto" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "0.2em" }}>
@@ -347,7 +337,6 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
         </div>
       </div>
 
-      {/* REPRODUCTOR PRINCIPAL */}
       <audio 
         ref={audioRef} 
         style={{ display: "none" }} 

@@ -168,10 +168,10 @@ export default function AdminView({
   const actionBtn = { border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s' };
 
   return (
-    <div style={{ height: '100vh', overflowY: 'auto', background: '#121212', color: '#fff', fontFamily: 'system-ui, sans-serif', padding: '30px', boxSizing: 'border-box' }}>
+    <div className="admin-container" style={{ height: '100vh', overflowY: 'auto', background: '#121212', color: '#fff', fontFamily: 'system-ui, sans-serif', boxSizing: 'border-box' }}>
       
       {/* 1. TOP BAR */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+      <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ width: '12px', height: '12px', background: '#1DB954', borderRadius: '50%', boxShadow: '0 0 10px #1DB954' }}></div>
           <h1 style={{ fontSize: '22px', fontWeight: '800', margin: 0, letterSpacing: '-0.5px' }}>UP-T <span style={{ color: '#1DB954' }}>ADMIN</span></h1>
@@ -184,7 +184,7 @@ export default function AdminView({
         </div>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '30px', alignItems: 'start' }}>
+      <div className="admin-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '30px', alignItems: 'start' }}>
         
         {/* COLUMNA IZQUIERDA: BUSCADOR Y LISTA */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
@@ -209,7 +209,7 @@ export default function AdminView({
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div className="search-results-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               {results.map((track) => (
                 <div key={track.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', background: '#282828', borderRadius: '8px' }}>
                   <img src={track.img} style={{ width: '40px', height: '40px', borderRadius: '4px', objectFit: 'cover' }} alt="" />
@@ -269,7 +269,7 @@ export default function AdminView({
         </div>
 
         {/* COLUMNA DERECHA: TV, VOLUMEN Y PEDIDOS */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', position: 'sticky', top: '20px' }}>
+        <div className="admin-side-column" style={{ display: 'flex', flexDirection: 'column', gap: '30px', position: 'sticky', top: '20px' }}>
           
           {/* TV Y VOLUMEN */}
           <div style={{ ...panelStyle, padding: 0, overflow: 'hidden' }}>
@@ -364,6 +364,21 @@ export default function AdminView({
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #fff; cursor: pointer; margin-top: -5px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: transparent; border-radius: 3px; }
         @keyframes badgeIn { from { opacity: 0; transform: translateY(-12px) scale(0.95) } to { opacity: 1; transform: translateY(0) scale(1) } }
+
+        /* MOBILE OPTIMIZATIONS */
+        .admin-container { padding: 30px; }
+        @media (max-width: 850px) {
+          .admin-container { padding: 15px; }
+          .admin-header { flex-direction: column; align-items: flex-start !important; gap: 20px; }
+          .admin-grid { grid-template-columns: 1fr !important; gap: 20px !important; }
+          .search-results-grid { grid-template-columns: 1fr !important; }
+          .admin-side-column { position: static !important; }
+          
+          /* Reordenar para que el control de volumen y TV aparezca arriba en mobile */
+          .admin-grid { display: flex !important; flexDirection: column-reverse; }
+          .admin-side-column { order: 1; }
+          .admin-grid > div:first-child { order: 2; }
+        }
       `}</style>
     </div>
   );
