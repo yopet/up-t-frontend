@@ -57,6 +57,7 @@ export default function AdminView({
   onRemove, 
   onPlay, 
   onAddSong, 
+  onClearQueue,
   volume = 50, 
   onVolumeChange 
 }) {
@@ -70,12 +71,9 @@ export default function AdminView({
   const [lastNewTrack, setLastNewTrack] = useState(null);
   const prevQueueLen = useRef(queue.length);
 
-  // Estado local para que el volumen se mueva al instante en la UI
   const [localVol, setLocalVol] = useState(volume);
   const [lastNonZeroVolume, setLastNonZeroVolume] = useState(volume > 0 ? volume : 50);
-  
 
-  // Sincronizar el volumen local si cambia desde afuera (otra pestaña o DB)
   useEffect(() => {
     setLocalVol(volume);
   }, [volume]);
@@ -87,17 +85,39 @@ export default function AdminView({
     prevQueueLen.current = queue.length;
   }, [queue]);
 
-  // --- LOGICA DE BUSQUEDA ---
+  // --- LOGICA DE BUSQUEDA MEJORADA (Mínimo 3 letras + 600ms debounce) ---
   useEffect(() => {
-    if (!query.trim() || !apiKey) { setResults([]); return; }
+    const trimmedQuery = query.trim();
+
+    // 1. Limpieza si está vacío
+    if (!trimmedQuery || !apiKey) { 
+      setResults([]); 
+      setSearching(false);
+      return; 
+    }
+
+    // 2. Validación de longitud (Ahorro de cuota)
+    if (trimmedQuery.length < 3) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+
     setSearching(true);
     const ctrl = new AbortController();
+
+    // Debounce aumentado a 600ms para panel de administración
     const timeout = setTimeout(async () => {
       try {
-        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=5&q=${encodeURIComponent(query)}&key=${apiKey}`, { signal: ctrl.signal });
+        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=5&q=${encodeURIComponent(trimmedQuery)}&key=${apiKey}`, { signal: ctrl.signal });
         const data = await res.json();
         const items = data.items || [];
-        if (!items.length) { setResults([]); setSearching(false); return; }
+        
+        if (!items.length) { 
+          setResults([]); 
+          setSearching(false); 
+          return; 
+        }
 
         const vIds = items.map(i => i.id.videoId).join(",");
         const dRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${vIds}&key=${apiKey}`, { signal: ctrl.signal });
@@ -113,8 +133,13 @@ export default function AdminView({
           duration: dMap[item.id.videoId] || "",
           youtubeId: item.id.videoId,
         })));
-      } catch (e) { console.error(e); } finally { setSearching(false); }
-    }, 500);
+      } catch (e) { 
+        if (e.name !== "AbortError") console.error(e); 
+      } finally { 
+        setSearching(false); 
+      }
+    }, 600);
+
     return () => { clearTimeout(timeout); ctrl.abort(); };
   }, [query, apiKey]);
 
@@ -122,8 +147,8 @@ export default function AdminView({
   const handleVolChange = (e) => {
     const val = parseInt(e.target.value);
     if (val > 0) setLastNonZeroVolume(val);
-    setLocalVol(val); // Actualización visual inmediata
-    if (onVolumeChange) onVolumeChange(val); // Envío al padre/DB
+    setLocalVol(val);
+    if (onVolumeChange) onVolumeChange(val);
   };
 
   const toggleMute = () => {
@@ -164,10 +189,10 @@ export default function AdminView({
         {/* COLUMNA IZQUIERDA: BUSCADOR Y LISTA */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
           
-          {/* BUSCADOR */}
+          {/* BUSCADOR MAESTRO */}
           <div style={{ ...panelStyle, border: '1px solid #1DB954' }}>
             <h2 style={{ ...headerStyle, color: '#1DB954' }}>Buscador Maestro</h2>
-            <div style={{ display: 'flex', background: '#282828', padding: '12px 18px', borderRadius: '30px', alignItems: 'center', gap: '12px', marginBottom: results.length > 0 ? '20px' : '0' }}>
+            <div style={{ display: 'flex', background: '#282828', padding: '12px 18px', borderRadius: '30px', alignItems: 'center', gap: '12px', marginBottom: (results.length > 0 || (query.trim().length > 0 && query.trim().length < 3)) ? '20px' : '0' }}>
               <IconSearch />
               <input 
                 value={query} onChange={(e) => setQuery(e.target.value)}
@@ -176,6 +201,13 @@ export default function AdminView({
               />
               {searching && <div className="spinner" />}
             </div>
+
+            {/* MENSAJE DE AYUDA VISUAL */}
+            {query.trim().length > 0 && query.trim().length < 3 && (
+              <div style={{ fontSize: '11px', color: '#1DB954', marginTop: '-10px', marginBottom: '15px', paddingLeft: '18px', opacity: 0.8 }}>
+                Escribe al menos 3 letras para buscar en YouTube...
+              </div>
+            )}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               {results.map((track) => (
@@ -193,7 +225,30 @@ export default function AdminView({
 
           {/* BIBLIOTECA COMPLETA */}
           <div style={panelStyle}>
-            <h2 style={headerStyle}>Cola de Reproducción ({queue.length})</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ ...headerStyle, marginBottom: 0 }}>Cola de Reproducción ({queue.length})</h2>
+              {queue.length > 0 && (
+                <button 
+                  onClick={() => {
+                    if (window.confirm("¿Estás seguro de que quieres vaciar toda la lista de reproducción?")) {
+                      onClearQueue();
+                    }
+                  }}
+                  style={{ 
+                    background: 'transparent', 
+                    border: '1px solid #ff4444', 
+                    color: '#ff4444', 
+                    padding: '6px 12px', 
+                    borderRadius: '20px', 
+                    fontSize: '11px', 
+                    fontWeight: '700', 
+                    cursor: 'pointer' 
+                  }}
+                >
+                  VACIAR LISTA
+                </button>
+              )}
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {queue.map((song, idx) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px 10px', borderBottom: '1px solid #282828', background: idx === currentIdx ? '#1db95408' : 'transparent' }}>
@@ -235,7 +290,7 @@ export default function AdminView({
               ) : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#444' }}>ESPERANDO SELECCIÓN...</div>}
             </div>
 
-            {/* CONTROL DE VOLUMEN (YA FUNCIONA) */}
+            {/* CONTROL DE VOLUMEN */}
             <div style={{ padding: '20px', background: '#1c1c1c' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
                     <div 
@@ -267,7 +322,7 @@ export default function AdminView({
             </div>
           </div>
 
-          {/* SOLICITUDES DE CLIENTES (RECHAZAR / ACEPTAR) */}
+          {/* SOLICITUDES DE CLIENTES */}
           <div style={{ ...panelStyle, background: '#121212', border: '1px solid #333' }}>
             <h2 style={headerStyle}>Solicitudes de Clientes</h2>
             {upcomingVotes.length === 0 ? (
@@ -303,7 +358,6 @@ export default function AdminView({
 
       {lastNewTrack && <NewBadge track={lastNewTrack} onDone={() => setLastNewTrack(null)} />}
 
-      {/* CSS PARA SPINNER Y SLIDER */}
       <style>{`
         .spinner { width: 14px; height: 14px; border: 2px solid #333; border-top-color: #1DB954; border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }

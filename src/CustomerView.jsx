@@ -43,8 +43,8 @@ function isQuotaError(data) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const MOCK_NOW = {
-  title: "Neon Afterglow",
-  artist: "Synthwave Dreams",
+  title: "Esperando canción...",
+  artist: "Up-T Gastrobar",
   img: "https://picsum.photos/seed/nowplay/80/80",
 };
 
@@ -110,14 +110,28 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
   const safeCurrentIdx = Math.min(Math.max(0, currentIdx), Math.max(0, queue.length - 1));
   const currentTrack = queue[safeCurrentIdx] || null;
 
-  // Sincronizar "added" con la cola global
   useEffect(() => {
     setAdded(new Set(queue.map((song) => song.id)));
   }, [queue]);
 
-  // Búsqueda YouTube con rotación de keys
   useEffect(() => {
-    if (!query.trim()) { setResults([]); setError(""); setKeysInfo(""); return; }
+    const trimmedQuery = query.trim();
+
+    if (!trimmedQuery) { 
+      setResults([]); 
+      setError(""); 
+      setKeysInfo(""); 
+      setSearching(false);
+      return; 
+    }
+
+    if (trimmedQuery.length < 3) {
+      setResults([]);
+      setError("");
+      setSearching(false);
+      return;
+    }
+
     setSearching(true);
     setError("");
     setKeysInfo("");
@@ -127,7 +141,7 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
     const timeout = setTimeout(async () => {
       const searchWithKey = async (key) => {
         const res = await fetch(
-          `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=5&q=${encodeURIComponent(query)}&key=${key}`,
+          `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=5&q=${encodeURIComponent(trimmedQuery)}&key=${key}`,
           { signal: ctrl.signal }
         );
         return res.json();
@@ -144,9 +158,7 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
 
         let searchData = await searchWithKey(currentKey);
 
-        // Rotar keys si la actual está agotada
         while (isQuotaError(searchData)) {
-          console.warn(`[YT] Key agotada, rotando...`);
           markKeyExhausted(currentKey);
           currentKey = getAvailableKey();
           if (!currentKey) {
@@ -157,7 +169,6 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
           searchData = await searchWithKey(currentKey);
         }
 
-        // Mostrar info de keys restantes cuando alguna se ha agotado
         const exhausted = JSON.parse(localStorage.getItem(EXHAUSTED_KEY) || "[]");
         const remaining = API_KEYS.length - exhausted.length;
         if (remaining < API_KEYS.length) {
@@ -173,7 +184,6 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
         const items = searchData.items || [];
         if (!items.length) { setResults([]); setSearching(false); return; }
 
-        // Obtener duraciones
         const videoIds = items.map((i) => i.id.videoId).join(",");
         const detailRes = await fetch(
           `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds}&key=${currentKey}`,
@@ -199,7 +209,7 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
       } finally {
         setSearching(false);
       }
-    }, 450);
+    }, 600);
 
     return () => { clearTimeout(timeout); ctrl.abort(); };
   }, [query]);
@@ -209,7 +219,6 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
     if (onSongRequest) onSongRequest(track);
     setAdded((s) => new Set([...s, track.id]));
     setToast(`"${track.title}" agregada a la cola`);
-    // TODO: supabase.from('queue').insert({ ...track })
   };
 
   const bg = "#0a0a0a";
@@ -227,7 +236,6 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
     }}>
       {toast && <Toast msg={toast} onDone={() => setToast("")} />}
 
-      {/* Header */}
       <div style={{
         padding: "20px 18px 12px", position: "sticky", top: 0,
         background: bg, zIndex: 10, borderBottom: `1px solid ${border}`,
@@ -240,7 +248,6 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
         </div>
         <div style={{ fontSize: 20, fontWeight: 700, color: "#fff", marginBottom: 14 }}>Pide tu canción</div>
 
-        {/* Search */}
         <div style={{
           background: surface2, borderRadius: 12, display: "flex",
           alignItems: "center", gap: 10, padding: "10px 14px", border: `1px solid ${border}`,
@@ -261,10 +268,17 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
               style={{ background: "none", border: "none", color: muted, cursor: "pointer", padding: 0, fontSize: 16, lineHeight: 1 }}>✕</button>
           )}
         </div>
+        
+        {/* NUEVO: Mensaje de ayuda visual para los 3 caracteres */}
+        {query.trim().length > 0 && query.trim().length < 3 && (
+          <div style={{ fontSize: 11, color: "#1db954", marginTop: 8, paddingLeft: 4, opacity: 0.8 }}>
+            Escribe al menos 3 letras para buscar...
+          </div>
+        )}
+
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
 
-      {/* Now Playing */}
       <div style={{ margin: "14px 14px 0" }}>
         <div style={{
           background: surface, borderRadius: 14, padding: "12px 14px",
@@ -289,15 +303,13 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
         </div>
       </div>
 
-      {/* Error */}
       {error && (
         <div style={{ margin: "14px 14px 0", padding: "12px 14px", background: "rgba(255,60,60,0.08)", border: "1px solid rgba(255,60,60,0.2)", borderRadius: 12, fontSize: 13, color: "#ff6b6b" }}>
           ⚠ {error}
         </div>
       )}
 
-      {/* Results */}
-      {(query.trim() || searching) && !error && (
+      {(query.trim().length >= 3 || searching) && !error && (
         <div style={{ margin: "18px 14px 0" }}>
           <div style={{ fontSize: 10, color: muted2, letterSpacing: "0.12em", fontWeight: 600, marginBottom: 10, paddingLeft: 4 }}>
             {searching ? "BUSCANDO EN YOUTUBE..." : results.length > 0 ? `${results.length} RESULTADOS` : "SIN RESULTADOS"}
@@ -337,7 +349,6 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
         </div>
       )}
 
-      {/* Queue */}
       {queue.length > 0 && (
         <div style={{ margin: "22px 14px 0" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, paddingLeft: 4 }}>
@@ -362,7 +373,6 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
         </div>
       )}
 
-      {/* Empty */}
       {!query && queue.length === 0 && !error && (
         <div style={{ textAlign: "center", padding: "3rem 2rem", color: muted }}>
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={muted} strokeWidth="1.5" strokeLinecap="round" style={{ marginBottom: 12 }}>

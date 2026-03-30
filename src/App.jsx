@@ -274,6 +274,16 @@ export default function App() {
     if (currentIdx >= idx && currentIdx > 0) setCurrentIdx((prev) => prev - 1);
   }, [currentIdx]);
 
+  const handleClearQueue = useCallback(async () => {
+    const { error } = await supabase.from("queue").delete().neq("id", -1);
+    if (error) {
+      console.error("Error vaciando la cola:", error);
+    } else {
+      setQueue([]);
+      updateAppState({ current_idx: 0 });
+    }
+  }, [updateAppState]);
+
   const handlePlayNow = useCallback((idx) => {
     setCurrentIdx(idx);
     updateAppState({ current_idx: idx });
@@ -322,6 +332,7 @@ export default function App() {
               onRemove={handleRemoveFromQueue} 
               onPlay={handlePlayNow} 
               onAddSong={handleSongRequest}
+              onClearQueue={handleClearQueue}
               volume={volume}
               onVolumeChange={handleVolumeChange}
             />
