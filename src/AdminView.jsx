@@ -20,6 +20,37 @@ const IconSearch = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="n
 const IconVolume = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 5L6 9H2v6h4l5 4V5z"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>;
 const IconTv = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>;
 
+function NewBadge({ track, onDone }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 4000);
+    return () => clearTimeout(t);
+  }, [track?.id]);
+
+  if (!track) return null;
+  return (
+    <div style={{
+      position: "fixed", top: 24, right: 24, zIndex: 500,
+      background: "rgba(29,185,84,0.12)", border: "1px solid rgba(29,185,84,0.4)",
+      backdropFilter: "blur(16px)", borderRadius: "14px",
+      padding: "12px 16px", display: "flex", alignItems: "center", gap: 12,
+      animation: "badgeIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+      maxWidth: 280, color: "#fff"
+    }}>
+      <img src={track.img} alt="" style={{ width: 42, height: 42, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
+      <div>
+        <div style={{ fontSize: 10, color: "#1DB954", fontWeight: 700, letterSpacing: "0.12em", marginBottom: 3 }}>
+          ♪ NUEVA SOLICITUD
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>
+          {track.title}
+        </div>
+        <div style={{ fontSize: 11, color: "#b3b3b3", marginTop: 1 }}>{track.artist}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminView({ 
   queue = [], 
   currentIdx = 0, 
@@ -36,14 +67,25 @@ export default function AdminView({
   const [searching, setSearching] = useState(false);
   const [approvedIds, setApprovedIds] = useState(new Set());
   
+  const [lastNewTrack, setLastNewTrack] = useState(null);
+  const prevQueueLen = useRef(queue.length);
+
   // Estado local para que el volumen se mueva al instante en la UI
   const [localVol, setLocalVol] = useState(volume);
+  const [lastNonZeroVolume, setLastNonZeroVolume] = useState(volume > 0 ? volume : 50);
   
 
   // Sincronizar el volumen local si cambia desde afuera (otra pestaña o DB)
   useEffect(() => {
     setLocalVol(volume);
   }, [volume]);
+
+  useEffect(() => {
+    if (queue.length > prevQueueLen.current) {
+      setLastNewTrack(queue[queue.length - 1]);
+    }
+    prevQueueLen.current = queue.length;
+  }, [queue]);
 
   // --- LOGICA DE BUSQUEDA ---
   useEffect(() => {
@@ -52,7 +94,7 @@ export default function AdminView({
     const ctrl = new AbortController();
     const timeout = setTimeout(async () => {
       try {
-        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=6&q=${encodeURIComponent(query)}&key=${apiKey}`, { signal: ctrl.signal });
+        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=5&q=${encodeURIComponent(query)}&key=${apiKey}`, { signal: ctrl.signal });
         const data = await res.json();
         const items = data.items || [];
         if (!items.length) { setResults([]); setSearching(false); return; }
@@ -79,8 +121,18 @@ export default function AdminView({
   // --- HANDLERS ---
   const handleVolChange = (e) => {
     const val = parseInt(e.target.value);
+    if (val > 0) setLastNonZeroVolume(val);
     setLocalVol(val); // Actualización visual inmediata
     if (onVolumeChange) onVolumeChange(val); // Envío al padre/DB
+  };
+
+  const toggleMute = () => {
+    if (localVol > 0) {
+      setLastNonZeroVolume(localVol);
+      handleVolChange({ target: { value: 0 } });
+    } else {
+      handleVolChange({ target: { value: lastNonZeroVolume } });
+    }
   };
 
   const upcomingVotes = queue.filter((_, idx) => idx > currentIdx);
@@ -186,8 +238,13 @@ export default function AdminView({
             {/* CONTROL DE VOLUMEN (YA FUNCIONA) */}
             <div style={{ padding: '20px', background: '#1c1c1c' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 'bold', color: '#b3b3b3' }}>
-                        <IconVolume /> VOLUMEN DEL LOCAL
+                    <div 
+                        onClick={toggleMute}
+                        style={{ 
+                            display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 'bold', 
+                            color: localVol === 0 ? '#ff4444' : '#b3b3b3', cursor: 'pointer', userSelect: 'none' 
+                        }}>
+                        <IconVolume /> {localVol === 0 ? 'SILENCIADO' : 'VOLUMEN DEL LOCAL'}
                     </div>
                     <span style={{ color: '#1DB954', fontWeight: 'bold', fontSize: '16px' }}>{localVol}%</span>
                 </div>
@@ -244,12 +301,15 @@ export default function AdminView({
         </div>
       </div>
 
+      {lastNewTrack && <NewBadge track={lastNewTrack} onDone={() => setLastNewTrack(null)} />}
+
       {/* CSS PARA SPINNER Y SLIDER */}
       <style>{`
         .spinner { width: 14px; height: 14px; border: 2px solid #333; border-top-color: #1DB954; border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #fff; cursor: pointer; margin-top: -5px; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: transparent; border-radius: 3px; }
+        @keyframes badgeIn { from { opacity: 0; transform: translateY(-12px) scale(0.95) } to { opacity: 1; transform: translateY(0) scale(1) } }
       `}</style>
     </div>
   );

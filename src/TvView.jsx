@@ -54,37 +54,6 @@ function SpectrumBars({ color, tick }) {
   );
 }
 
-function NewBadge({ track, onDone }) {
-  useEffect(() => {
-    const t = setTimeout(onDone, 4000);
-    return () => clearTimeout(t);
-  }, [track?.id]);
-
-  if (!track) return null;
-  return (
-    <div style={{
-      position: "fixed", top: 24, right: 24, zIndex: 500,
-      background: "rgba(29,185,84,0.12)", border: "1px solid rgba(29,185,84,0.4)",
-      backdropFilter: "blur(16px)", borderRadius: 14,
-      padding: "12px 16px", display: "flex", alignItems: "center", gap: 12,
-      animation: "badgeIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
-      boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-      maxWidth: 280,
-    }}>
-      <img src={track.img} alt="" style={{ width: 42, height: 42, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
-      <div>
-        <div style={{ fontSize: 10, color: "#1db954", fontWeight: 700, letterSpacing: "0.12em", marginBottom: 3 }}>
-          ♪ NUEVA SOLICITUD
-        </div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>
-          {track.title}
-        </div>
-        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 1 }}>{track.artist}</div>
-      </div>
-    </div>
-  );
-}
-
 const parseDuration = (value) => {
   if (typeof value === "number") return value;
   if (typeof value !== "string") return 0;
@@ -110,8 +79,6 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
   const [qrReady, setQrReady] = useState(false);
   const [isStarted, setIsStarted] = useState(false);
   const [error, setError] = useState(null);
-  const [lastNewTrack, setLastNewTrack] = useState(null);
-  const prevQueueLen = useRef(queue.length);
   const audioRef = useRef(null);
 
   const trackDuration = parseDuration(track.duration);
@@ -125,13 +92,6 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
 
   useEffect(() => {
     setProgress(0);
-  }, [track.id]);
-
-  useEffect(() => {
-    if (queue.length > prevQueueLen.current) {
-      setLastNewTrack(queue[queue.length - 1]);
-    }
-    prevQueueLen.current = queue.length;
   }, [queue]);
 
   useEffect(() => {
@@ -200,8 +160,9 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
   }, [isStarted]);
 
   const handleTimeUpdate = () => {
-    if (audioRef.current && audioRef.current.duration) {
-      setProgress((audioRef.current.currentTime / audioRef.current.duration) * 100);
+    if (audioRef.current && trackDuration > 0) {
+      const currentProgress = (audioRef.current.currentTime / trackDuration) * 100;
+      setProgress(Math.min(100, currentProgress));
     }
   };
 
@@ -221,10 +182,6 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
       inset: 0, 
       fontFamily: "system-ui, -apple-system, sans-serif" 
     }}>
-
-      {lastNewTrack && (
-        <NewBadge track={lastNewTrack} onDone={() => setLastNewTrack(null)} />
-      )}
 
       <div style={{
         position: "fixed", inset: "-60px",
@@ -312,7 +269,7 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
         <div style={{
           display: "flex", flexDirection: "column", gap: "2rem",
           width: "clamp(180px, 20vw, 280px)", flexShrink: 0,
-          maxHeight: "calc(100vh - 8vh)", overflowY: "hidden",
+          maxHeight: "calc(100vh - 8vh)", overflowY: "auto",
         }}>
 
           <div>
@@ -515,7 +472,6 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
         @keyframes eq0 { from { height: 4px } to { height: 16px } }
         @keyframes eq1 { from { height: 8px } to { height: 12px } }
         @keyframes eq2 { from { height: 3px } to { height: 16px } }
-        @keyframes badgeIn { from { opacity: 0; transform: translateY(-12px) scale(0.95) } to { opacity: 1; transform: translateY(0) scale(1) } }
       `}</style>
     </div>
   );
