@@ -18,6 +18,7 @@ const IconTrash = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="no
 const IconCheck = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>;
 const IconSearch = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>;
 const IconVolume = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 5L6 9H2v6h4l5 4V5z"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>;
+const IconTv = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>;
 
 export default function AdminView({ 
   queue = [], 
@@ -99,6 +100,9 @@ export default function AdminView({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
              <div style={{ color: '#b3b3b3', fontSize: '12px', background: '#282828', padding: '6px 14px', borderRadius: '20px', border: '1px solid #333' }}>Bogotá • Gastrobar</div>
+             <button onClick={() => window.open('/tv', '_blank')} style={{ background: '#1DB954', color: '#000', border: 'none', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+               <IconTv /> ABRIR TV
+             </button>
         </div>
       </header>
 

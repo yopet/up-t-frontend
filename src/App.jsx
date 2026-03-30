@@ -7,6 +7,9 @@ import AdminView from "./AdminView";
 
 const ACCENT_COLORS = ["#00c9ff", "#ff6b6b", "#1db954", "#ff99c8", "#ffcc00", "#a78bfa", "#ff4d00", "#00ffd0"];
 
+// Detectar la URL base del despliegue automáticamente
+const SCAN_URL = typeof window !== "undefined" ? `${window.location.origin}/scan` : "/scan";
+
 const parseDurationString = (value) => {
   if (value === undefined || value === null || value === "") return 0;
   if (typeof value === "number") return value;
@@ -51,7 +54,7 @@ export default function App() {
       color: song.color ?? item.color ?? ACCENT_COLORS[item.id % ACCENT_COLORS.length],
       img: song.img ?? song.img_url ?? item.img ?? item.img_url ?? "https://picsum.photos/seed/default/600/600",
       album: song.album ?? item.album ?? "Single",
-      qr: song.qr ?? item.qr ?? "https://up-t.app/scan",
+      qr: song.qr ?? item.qr ?? SCAN_URL,
       youtubeId,
     };
   }, []);

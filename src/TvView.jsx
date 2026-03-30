@@ -4,6 +4,9 @@ import { useState, useEffect, useRef } from "react";
 const STREAM_API_URL = import.meta.env.VITE_STREAM_API_URL || "http://localhost:3000";
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Detectar la URL base del despliegue automáticamente
+const SCAN_URL = typeof window !== "undefined" ? `${window.location.origin}/scan` : "/scan";
+
 const EMPTY_TRACK = {
   id: "empty",
   title: "Esperando canción",
@@ -12,7 +15,7 @@ const EMPTY_TRACK = {
   duration: 180,
   color: "#1db954",
   img: "https://picsum.photos/seed/placeholder/600/600",
-  qr: "https://up-t.app/scan",
+  qr: SCAN_URL,
   youtubeId: "",
 };
 
@@ -394,7 +397,7 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
               background: "rgba(255,255,255,0.06)", borderRadius: 14, padding: 14,
               border: `1px solid ${track.color}33`, transition: "border-color 1s",
             }}>
-              {qrReady && <QRCode url={track.qr || "https://up-t.app/scan"} color={track.color} size={150} key={track.id} />}
+              {qrReady && <QRCode url={track.qr || SCAN_URL} color={track.color} size={150} key={track.id} />}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill={track.color}>
