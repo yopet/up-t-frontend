@@ -2,6 +2,29 @@ import { useState, useEffect, useRef } from "react";
 
 // ─── CONFIG ─────────────────────────────────────────────────────────────────
 const STREAM_API_URL = import.meta.env.VITE_STREAM_API_URL || "http://localhost:3000";
+
+// ─── LÓGICA DE LLAVES (Para evitar el Error 400 en Vercel) ──────────────────
+const API_KEYS = [
+  import.meta.env.VITE_YT_KEY_1,
+  import.meta.env.VITE_YT_KEY_2,
+  import.meta.env.VITE_YT_KEY_3,
+  import.meta.env.VITE_YT_KEY_4,
+  import.meta.env.VITE_YT_KEY_5,
+].filter(Boolean);
+
+const EXHAUSTED_KEY = "yt_exhausted_keys";
+const EXHAUSTED_UNTIL_KEY = "yt_exhausted_until";
+
+function getAvailableKey() {
+  const until = parseInt(localStorage.getItem(EXHAUSTED_UNTIL_KEY) || "0");
+  if (Date.now() > until) {
+    localStorage.removeItem(EXHAUSTED_KEY);
+    localStorage.removeItem(EXHAUSTED_UNTIL_KEY);
+    return API_KEYS[0];
+  }
+  const exhausted = JSON.parse(localStorage.getItem(EXHAUSTED_KEY) || "[]");
+  return API_KEYS.find((k) => !exhausted.includes(k)) || API_KEYS[0];
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SCAN_URL = typeof window !== "undefined" ? `${window.location.origin}/scan` : "/scan";
@@ -106,14 +129,21 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
   }, []);
 
   useEffect(() => {
-    if (!isStarted || !audioRef.current) return;
+    if (!isStarted || !audioRef.current || !track.youtubeId) return;
     const audio = audioRef.current;
+    const currentKey = getAvailableKey();
+
+    if (!currentKey) {
+      setError("Falta API Key");
+      return;
+    }
+
     setError(null);
     setIsBuffering(true);
 
     audio.pause();
-    audio.muted = true;
-    audio.src = `${STREAM_API_URL}/api/stream?v=${track.youtubeId}`;
+    // Se agrega el parámetro &key para que el backend no falle con error 400
+    audio.src = `${STREAM_API_URL}/api/stream?v=${track.youtubeId}&key=${currentKey}`;
     audio.load();
     
     let retryId = null;
@@ -131,7 +161,7 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
             audio.muted = volume === 0; 
             audio.volume = Math.max(0, Math.min(1, volume / 100));
           }
-          catch { setError("Error de conexión con el servidor"); }
+          catch { setError("Error de conexión"); }
         }, 1500);
       }
     };
@@ -149,24 +179,25 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
 
   const handleTimeUpdate = () => {
     if (audioRef.current && trackDuration > 0) {
-      // Si el audio está avanzando, ya no hay buffering
       if (isBuffering) setIsBuffering(false);
 
       const currentTime = audioRef.current.currentTime;
       const currentProgress = (currentTime / trackDuration) * 100;
       setProgress(Math.min(100, currentProgress));
 
-      // LÓGICA: Solo precarga si han pasado 6s de sonido real (sin buffering activo)
       const nextTrack = queue[safeIdx + 1];
+      const currentKey = getAvailableKey();
+
       if (
-        !isBuffering &&               // Debe estar sonando (no cargando)
-        currentTime >= 6 &&           // Deben haber pasado al menos 6 segundos
-        nextTrack &&                  // Debe existir una siguiente canción
-        preloadedId !== nextTrack.youtubeId // Evita peticiones infinitas
+        !isBuffering && 
+        currentTime >= 6 && 
+        nextTrack && 
+        currentKey &&
+        preloadedId !== nextTrack.youtubeId 
       ) {
         setPreloadedId(nextTrack.youtubeId);
         if (nextAudioRef.current) {
-          nextAudioRef.current.src = `${STREAM_API_URL}/api/stream?v=${nextTrack.youtubeId}`;
+          nextAudioRef.current.src = `${STREAM_API_URL}/api/stream?v=${nextTrack.youtubeId}&key=${currentKey}`;
           nextAudioRef.current.load();
         }
       }
@@ -201,7 +232,6 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
         gap: "4vw", alignItems: "center", padding: "4vh 4vw",
       }}>
 
-        {/* IZQUIERDA — Portada */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1.5rem" }}>
           <div style={{
             width: "clamp(260px, 28vw, 440px)", aspectRatio: "1",
@@ -232,7 +262,6 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
           </div>
         </div>
 
-        {/* CENTRO — Info de canción */}
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: "1.8rem", minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: track.color, animation: isBuffering ? "none" : "pulse 1.4s ease-in-out infinite" }} />
@@ -274,7 +303,6 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
           <SpectrumBars color={track.color} tick={tick} isBuffering={isBuffering && track.youtubeId !== ""} />
         </div>
 
-        {/* DERECHA — Cola + QR */}
         <div style={{ display: "flex", flexDirection: "column", gap: "2rem", width: "clamp(180px, 20vw, 280px)", flexShrink: 0, maxHeight: "calc(100vh - 8vh)", overflowY: "auto" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
@@ -311,13 +339,6 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
                       <div style={{ fontSize: 13, color: active ? "#fff" : "rgba(255,255,255,0.8)", fontWeight: active ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
                       <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.artist}</div>
                     </div>
-                    {active && !isBuffering && (
-                      <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 16 }}>
-                        {[0, 1, 2].map((j) => (
-                          <div key={j} style={{ width: 3, background: t.color, borderRadius: 2, animation: `eq${j} ${0.5 + j * 0.15}s ease-in-out infinite alternate` }} />
-                        ))}
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -365,9 +386,6 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
         @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: 0.5; transform: scale(0.8) } }
-        @keyframes eq0 { from { height: 4px } to { height: 16px } }
-        @keyframes eq1 { from { height: 8px } to { height: 12px } }
-        @keyframes eq2 { from { height: 3px } to { height: 16px } }
       `}</style>
     </div>
   );
