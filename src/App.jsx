@@ -107,7 +107,7 @@ export default function App() {
       title: song.title,
       artist: song.artist,
       duration: typeof song.duration === "number" ? song.duration : parseDurationString(song.duration),
-      color: song.color,
+      color: song.color ?? ACCENT_COLORS[Math.floor(Math.random() * ACCENT_COLORS.length)],
       img_url: song.img ?? song.img_url,
       album: song.album,
       qr: song.qr,
@@ -275,7 +275,7 @@ export default function App() {
   }, [currentIdx]);
 
   const handleClearQueue = useCallback(async () => {
-    const { error } = await supabase.from("queue").delete().neq("id", -1);
+    const { error } = await supabase.from("queue").delete().not("id", "is", null);
     if (error) {
       console.error("Error vaciando la cola:", error);
     } else {

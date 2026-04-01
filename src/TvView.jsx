@@ -358,6 +358,63 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
         </div>
       </div>
 
+      {/* OVERLAY DE MENSAJES ESTILO PANTALLA COMPLETA — UP-T */}
+      {currentMessage && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 2000,
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          background: "rgba(0,0,0,0.92)", backdropFilter: "blur(25px)",
+          animation: "fadeIn 0.6s ease-out", textAlign: "center", padding: "5vw"
+        }}>
+          {/* Cabecera */}
+          <div style={{ 
+            fontSize: "clamp(0.8rem, 2vw, 1.2rem)", 
+            color: track.color, 
+            fontWeight: 800, 
+            letterSpacing: "0.5em", 
+            marginBottom: "3vh", 
+            textTransform: "uppercase", 
+            opacity: 0.9
+          }}>
+            ✨ Pedido Especial ✨
+          </div>
+
+          {/* El Mensaje Principal */}
+          <div style={{ 
+            fontSize: "clamp(2.5rem, 6vw, 5.5rem)", 
+            fontWeight: 900, 
+            color: "#fff", 
+            lineHeight: 1.1,
+            textShadow: `0 0 50px ${track.color}66`,
+            maxWidth: "85vw", 
+            animation: "slideUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)"
+          }}>
+            {currentMessage}
+          </div>
+
+          {/* Autor del Mensaje */}
+          <div style={{ 
+            marginTop: "3vh",
+            fontSize: "clamp(1.2rem, 3vw, 2.2rem)",
+            color: track.color,
+            fontWeight: 600,
+            fontStyle: "italic",
+            animation: "fadeIn 1.2s ease",
+            opacity: 0.9
+          }}>
+            — {message_author ? `De: ${message_author}` : "De: Un cliente especial"}
+          </div>
+
+          <div style={{ marginTop: "6vh", display: "flex", alignItems: "center", gap: 15, opacity: 0.5 }}>
+            <img src={track.img} style={{ width: 45, height: 45, borderRadius: 8, boxShadow: `0 0 20px ${track.color}44` }} alt="" />
+            <div style={{ textAlign: "left" }}>
+              <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{track.title}</div>
+              <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>{track.artist}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <audio 
         ref={audioRef} 
         style={{ display: "none" }} 
