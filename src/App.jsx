@@ -8,7 +8,6 @@ import AdminView from "./AdminView";
 
 const ACCENT_COLORS = ["#00c9ff", "#ff6b6b", "#1db954", "#ff99c8", "#ffcc00", "#a78bfa", "#ff4d00", "#00ffd0"];
 
-// Detectar la URL base del despliegue automáticamente
 const SCAN_URL = typeof window !== "undefined" ? `${window.location.origin}/scan` : "/scan";
 
 const parseDurationString = (value) => {
@@ -34,6 +33,7 @@ const formatDurationText = (seconds) => {
 export default function App() {
   // --- ESTADOS ---
   const [queue, setQueue] = useState([]);
+  const [ads, setAds] = useState([]); 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [volume, setVolume] = useState(50);
   const [currentMessage, setCurrentMessage] = useState(null);
@@ -41,6 +41,7 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [autoPlay, setAutoPlay] = useState(true);
 
+  // --- NORMALIZACIÓN ---
   const normalizeQueueItem = useCallback((item) => {
     const song = item.songs_repository || item.song || {};
     const youtubeId = song.youtubeId ?? song.youtube_id ?? song.id ?? item.youtubeId ?? item.song_id ?? item.id;
@@ -53,7 +54,7 @@ export default function App() {
       title: song.title ?? item.title ?? "Canción desconocida",
       artist: song.artist ?? item.artist ?? "Artista desconocido",
       duration: rawDuration ? formatDurationText(rawDuration) : "",
-      color: song.color ?? item.color ?? ACCENT_COLORS[Math.abs(item.id.split('-').length) % ACCENT_COLORS.length],
+      color: song.color ?? item.color ?? ACCENT_COLORS[Math.abs(item.id?.split('-').length || 0) % ACCENT_COLORS.length],
       isApproved: item.is_approved ?? true,
       img: song.img ?? song.img_url ?? item.img ?? item.img_url ?? "https://picsum.photos/seed/default/600/600",
       album: song.album ?? item.album ?? "Single",
@@ -62,17 +63,45 @@ export default function App() {
     };
   }, []);
 
-  // Mover updateAppState aquí arriba para que esté disponible para los useEffect
   const updateAppState = useCallback(async (updates) => {
     const { error } = await supabase
       .from("app_state")
       .upsert({ id: "main-config", ...updates }, { onConflict: "id" });
-
-    if (error) {
-      console.error("Error actualizando app_state en Supabase:", error);
-    }
+    if (error) console.error("Error actualizando app_state:", error);
   }, []);
 
+  // --- LOGICA DE PUBLICIDAD (ADS) ---
+  const fetchAds = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("ads")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) console.warn("Error cargando ads:", error);
+    else if (data) setAds(data);
+  }, []);
+
+  const handleAddAd = async (newAd) => {
+    const { data, error } = await supabase
+      .from("ads")
+      .insert([{ 
+        title: newAd.title, 
+        image_url: newAd.image_url, 
+        frequency: newAd.frequency,
+        active: true 
+      }])
+      .select();
+
+    if (error) console.error("Error insertando ad:", error);
+    else if (data) setAds([data[0], ...ads]);
+  };
+
+  const handleRemoveAd = async (id) => {
+    const { error } = await supabase.from("ads").delete().eq("id", id);
+    if (error) console.error("Error eliminando ad:", error);
+    else setAds(ads.filter(ad => ad.id !== id));
+  };
+
+  // --- LOGICA DE COLA (QUEUE) ---
   const fetchQueue = useCallback(async () => {
     const { data, error } = await supabase
       .from("queue")
@@ -99,10 +128,7 @@ export default function App() {
       .eq("youtube_id", youtubeId)
       .maybeSingle();
 
-    if (selectError) {
-      console.error("Error consultando songs_repository:", selectError);
-      return null;
-    }
+    if (selectError) return null;
     if (existing?.id) return existing.id;
 
     const insertPayload = {
@@ -122,10 +148,7 @@ export default function App() {
       .select("id")
       .maybeSingle();
 
-    if (insertError) {
-      console.error("Error insertando en songs_repository:", insertError);
-      return null;
-    }
+    if (insertError) return null;
     return inserted?.id ?? null;
   }, []);
 
@@ -138,18 +161,16 @@ export default function App() {
       .insert({ 
         song_id: repositoryId, 
         requested_at: new Date().toISOString(),
-        is_approved: forceApprove || autoPlay // Si es del admin o autoPlay está activo
+        is_approved: forceApprove || autoPlay
       })
       .select("*, songs_repository(*)")
       .maybeSingle();
 
-    if (error) {
-      console.error("Error agregando a queue:", error);
-      return null;
-    }
+    if (error) return null;
     return data ? normalizeQueueItem(data) : null;
   }, [persistSongRepository, autoPlay, normalizeQueueItem]);
 
+  // --- EFECTO INICIAL Y REALTIME ---
   useEffect(() => {
     const loadData = async () => {
       const appStatePromise = supabase
@@ -158,11 +179,9 @@ export default function App() {
         .eq("id", "main-config")
         .maybeSingle();
 
-      const [appStateResult] = await Promise.all([appStatePromise, fetchQueue()]);
+      const [appStateResult] = await Promise.all([appStatePromise, fetchQueue(), fetchAds()]);
 
-      if (appStateResult.error) {
-        console.warn("No se pudo cargar app_state desde Supabase:", appStateResult.error);
-      } else if (appStateResult.data) {
+      if (appStateResult.data) {
         const data = appStateResult.data;
         if (data.volume !== undefined) setVolume(data.volume);
         if (data.current_idx !== undefined) setCurrentIdx(data.current_idx);
@@ -170,32 +189,15 @@ export default function App() {
         if (data.auto_play !== undefined) setAutoPlay(data.auto_play);
         if (data.current_message !== undefined) setCurrentMessage(data.current_message);
         if (data.message_author !== undefined) setMessageAuthor(data.message_author);
-      } else {
-        // Si no existe el registro principal, lo creamos para que realtime funcione.
-        const { data: created, error: createError } = await supabase
-          .from("app_state")
-          .insert({ id: "main-config", volume: 50, current_idx: 0, is_playing: false })
-          .maybeSingle();
-        if (createError) {
-          console.error("Error creando app_state inicial:", createError);
-        } else if (created) {
-          setVolume(created.volume ?? 50);
-          setCurrentIdx(created.current_idx ?? 0);
-          setIsPlaying(created.is_playing ?? false);
-        }
       }
     };
 
     loadData();
-    console.log("[Supabase] iniciando realtime channels");
 
     const appStateChannel = supabase
       .channel("app-state-channel")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "app_state", filter: "id=eq.main-config" },
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "app_state", filter: "id=eq.main-config" },
         (payload) => {
-          console.log("[Supabase] app_state payload", payload);
           const record = payload.new;
           if (!record) return;
           if (typeof record.volume === "number") setVolume(record.volume);
@@ -205,103 +207,56 @@ export default function App() {
           if (record.current_message !== undefined) setCurrentMessage(record.current_message);
           if (record.message_author !== undefined) setMessageAuthor(record.message_author);
         }
-      )
-      .subscribe();
-
-    console.log("[Supabase] appStateChannel created", appStateChannel);
+      ).subscribe();
 
     const queueChannel = supabase.channel("queue-channel")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "queue" },
-        async (payload) => {
-          console.log("[Supabase] queue INSERT payload", payload);
-          await fetchQueue();
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "queue" },
-        async (payload) => {
-          console.log("[Supabase] queue UPDATE payload", payload);
-          await fetchQueue();
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "queue" },
-        async (payload) => {
-          console.log("[Supabase] queue DELETE payload", payload);
-          await fetchQueue();
-        }
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "queue" }, () => fetchQueue())
       .subscribe();
-
-    console.log("[Supabase] queueChannel created", queueChannel);
 
     return () => {
       supabase.removeChannel(appStateChannel);
       supabase.removeChannel(queueChannel);
     };
-  }, [fetchQueue]);
+  }, [fetchQueue, fetchAds]);
 
-  // Efecto para limpiar el mensaje de la DB después de 10 segundos
+  // Temporizador para limpiar mensajes en pantalla
   useEffect(() => {
     if (currentMessage) {
       const timer = setTimeout(() => {
-        updateAppState({ current_message: null, message_author: null }); // Limpiamos ambos en DB
-        setMessageAuthor(null); // Limpiamos local
+        updateAppState({ current_message: null, message_author: null });
+        setCurrentMessage(null);
+        setMessageAuthor(null);
       }, 10000);
       return () => clearTimeout(timer);
     }
   }, [currentMessage, updateAppState]);
 
+  // --- HANDLERS ---
   const handleSongRequest = useCallback(async (song, forceApprove = false) => {
     if (queue.some((s) => s.id === song.id)) return;
-
     const newEntry = await addQueueRow(song, forceApprove);
     if (!newEntry) return;
-
-    setQueue((prev) => {
-      if (prev.some((s) => s.id === newEntry.id)) return prev;
-      return [...prev, newEntry];
-    });
+    setQueue((prev) => prev.some((s) => s.id === newEntry.id) ? prev : [...prev, newEntry]);
   }, [addQueueRow, queue]);
 
   const handleRemoveFromQueue = useCallback(async (idx) => {
-    let removedItem = null;
-    setQueue((prev) => {
-      removedItem = prev[idx];
-      return prev.filter((_, i) => i !== idx);
-    });
-
+    let removedItem = queue[idx];
     if (removedItem?.queueRowId) {
-      const { error } = await supabase.from("queue").delete().eq("id", removedItem.queueRowId);
-      if (error) console.error("Error eliminando item de queue:", error);
+      await supabase.from("queue").delete().eq("id", removedItem.queueRowId);
     }
-
     if (currentIdx >= idx && currentIdx > 0) setCurrentIdx((prev) => prev - 1);
-  }, [currentIdx]);
+  }, [currentIdx, queue]);
 
   const handleClearQueue = useCallback(async () => {
     const { error } = await supabase.from("queue").delete().not("id", "is", null);
-    if (error) {
-      console.error("Error vaciando la cola:", error);
-    } else {
+    if (!error) {
       setQueue([]);
       updateAppState({ current_idx: 0 });
     }
   }, [updateAppState]);
 
   const handleApproveSong = useCallback(async (queueRowId) => {
-    const { error } = await supabase
-      .from("queue")
-      .update({ 
-        is_approved: true, 
-        requested_at: new Date().toISOString() // La movemos al final de la cola activa
-      })
-      .eq("id", queueRowId);
-    if (error) console.error("Error aprobando canción:", error);
+    await supabase.from("queue").update({ is_approved: true, requested_at: new Date().toISOString() }).eq("id", queueRowId);
   }, []);
 
   const handlePlayNow = useCallback((idx) => {
@@ -315,11 +270,10 @@ export default function App() {
   }, [updateAppState]);
 
   const handleTrackEnd = useCallback(() => {
-    // En lugar de mover el estado local, actualizamos la DB. 
-    // Realtime se encargará de propagar el cambio a todos los componentes.
     const nextIdx = currentIdx + 1;
     if (nextIdx < queue.length) {
       updateAppState({ current_idx: nextIdx });
+      setCurrentIdx(nextIdx);
     }
   }, [currentIdx, queue.length, updateAppState]);
 
@@ -328,57 +282,62 @@ export default function App() {
     updateAppState({ auto_play: val });
   }, [updateAppState]);
 
+  // Función para aprobar mensajes desde AdminView
+  const handleApproveMessage = useCallback(async (msg) => {
+    updateAppState({ 
+      current_message: msg.text, 
+      message_author: msg.author 
+    });
+  }, [updateAppState]);
+
   const approvedQueue = queue.filter(s => s.isApproved);
 
   return (
     <BrowserRouter>
       <Routes>
-        {/* Pasamos el volumen a la TV para que lo aplique al reproductor */}
-        <Route
-          path="/tv"
-          element={
-            <TvView
-              queue={approvedQueue}
-              currentIdx={currentIdx}
-              onTrackEnd={handleTrackEnd}
-              onTrackChange={handlePlayNow}
-              volume={volume}
-              currentMessage={currentMessage}
-              message_author={messageAuthor}
-            />
-          }
-        />
+        <Route path="/tv" element={
+          <TvView 
+            queue={approvedQueue} 
+            currentIdx={currentIdx} 
+            onTrackEnd={handleTrackEnd} 
+            onTrackChange={handlePlayNow} 
+            volume={volume} 
+            currentMessage={currentMessage} 
+            message_author={messageAuthor} 
+          />
+        } />
 
-        {/* Pasamos volumen y la función setVolume al Admin */}
-        <Route
-          path="/admin"
-          element={
-            <AdminView
-              queue={queue}
-              currentIdx={currentIdx}
-              onRemove={handleRemoveFromQueue}
-              onPlay={handlePlayNow}
-              onAddSong={(song) => handleSongRequest(song, true)}
-              onClearQueue={handleClearQueue}
-              onApprove={handleApproveSong}
-              autoPlay={autoPlay}
-              onToggleAutoPlay={handleToggleAutoPlay}
-              volume={volume}
-              onVolumeChange={handleVolumeChange}
-            />
-          }
-        />
-        <Route
-          path="/tvVideo"
-          element={
-            <TvViewVideo
-              queue={approvedQueue}
-              currentIdx={currentIdx}
-              volume={volume}
-              onTrackEnd={handleTrackEnd}
-            />
-          }
-        />
+        <Route path="/admin" element={
+          <AdminView
+            queue={queue} 
+            currentIdx={currentIdx} 
+            onRemove={handleRemoveFromQueue} 
+            onPlay={handlePlayNow}
+            onAddSong={(song) => handleSongRequest(song, true)} 
+            onClearQueue={handleClearQueue}
+            onApprove={handleApproveSong} 
+            autoPlay={autoPlay} 
+            onToggleAutoPlay={handleToggleAutoPlay}
+            volume={volume} 
+            onVolumeChange={handleVolumeChange}
+            ads={ads} 
+            onAddAd={handleAddAd} 
+            onRemoveAd={handleRemoveAd}
+            onApproveMessage={handleApproveMessage}
+          />
+        } />
+
+        <Route path="/tvVideo" element={
+          <TvViewVideo 
+            queue={approvedQueue} 
+            currentIdx={currentIdx} 
+            volume={volume} 
+            onTrackEnd={handleTrackEnd} 
+            currentMessage={currentMessage} 
+            message_author={messageAuthor} 
+            ads={ads}
+          />
+        } />
 
         <Route path="/scan" element={<CustomerView onSongRequest={handleSongRequest} queue={queue} currentIdx={currentIdx} />} />
         <Route path="/" element={<CustomerView onSongRequest={handleSongRequest} queue={queue} currentIdx={currentIdx} />} />

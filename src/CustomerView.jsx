@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { supabase } from "./lib/supabase"; // Importante: Asegúrate de tener la ruta correcta a tu cliente
 
 // ─── CONFIG ─────────────────────────────────────────────────────────────────
 const API_KEYS = [
@@ -88,7 +89,7 @@ function Toast({ msg, onDone }) {
       position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)",
       background: "#1db954", color: "#000", fontWeight: 700, fontSize: 13,
       padding: "10px 22px", borderRadius: 50, whiteSpace: "nowrap",
-      boxShadow: "0 4px 20px rgba(0,0,0,0.5)", zIndex: 999,
+      boxShadow: "0 4px 20px rgba(0,0,0,0.5)", zIndex: 9999,
       animation: "toastIn 0.25s ease", fontFamily: "system-ui, sans-serif",
     }}>
       {msg}
@@ -107,6 +108,12 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
   const [keysInfo, setKeysInfo] = useState("");
   const inputRef = useRef(null);
 
+  // --- NUEVOS ESTADOS PARA MENSAJE ---
+  const [showMsgModal, setShowMsgModal] = useState(false);
+  const [msgText, setMsgText] = useState("");
+  const [msgAuthor, setMsgAuthor] = useState("");
+  const [sendingMsg, setSendingMsg] = useState(false);
+
   const safeCurrentIdx = Math.min(Math.max(0, currentIdx), Math.max(0, queue.length - 1));
   const currentTrack = queue[safeCurrentIdx] || null;
 
@@ -116,8 +123,7 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
 
   useEffect(() => {
     const trimmedQuery = query.trim();
-
-    if (!trimmedQuery) { 
+    if (!trimmedQuery || trimmedQuery.length < 3) { 
       setResults([]); 
       setError(""); 
       setKeysInfo(""); 
@@ -125,17 +131,8 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
       return; 
     }
 
-    if (trimmedQuery.length < 3) {
-      setResults([]);
-      setError("");
-      setSearching(false);
-      return;
-    }
-
     setSearching(true);
     setError("");
-    setKeysInfo("");
-
     const ctrl = new AbortController();
 
     const timeout = setTimeout(async () => {
@@ -149,9 +146,8 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
 
       try {
         let currentKey = getAvailableKey();
-
         if (!currentKey) {
-          setError("Cuota diaria agotada en todas las keys. Intenta mañana.");
+          setError("Cuota agotada. Intenta mañana.");
           setSearching(false);
           return;
         }
@@ -162,23 +158,11 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
           markKeyExhausted(currentKey);
           currentKey = getAvailableKey();
           if (!currentKey) {
-            setError("Cuota diaria agotada en todas las keys. Intenta mañana.");
+            setError("Cuota agotada.");
             setSearching(false);
             return;
           }
           searchData = await searchWithKey(currentKey);
-        }
-
-        const exhausted = JSON.parse(localStorage.getItem(EXHAUSTED_KEY) || "[]");
-        const remaining = API_KEYS.length - exhausted.length;
-        if (remaining < API_KEYS.length) {
-          setKeysInfo(`${remaining}/${API_KEYS.length} keys disponibles`);
-        }
-
-        if (searchData.error) {
-          setError(searchData.error.message || "Error de API");
-          setSearching(false);
-          return;
         }
 
         const items = searchData.items || [];
@@ -199,13 +183,13 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
           id: item.id.videoId,
           title: item.snippet.title,
           artist: item.snippet.channelTitle.replace(/ - Topic$| Music$/i, ""),
-          img: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
+          img: item.snippet.thumbnails.medium?.url,
           duration: durationMap[item.id.videoId] || "",
           videoId: item.id.videoId,
         })));
 
       } catch (e) {
-        if (e.name !== "AbortError") setError("No se pudo conectar con YouTube");
+        if (e.name !== "AbortError") setError("Error de conexión");
       } finally {
         setSearching(false);
       }
@@ -218,7 +202,33 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
     if (added.has(track.id)) return;
     if (onSongRequest) onSongRequest(track);
     setAdded((s) => new Set([...s, track.id]));
-    setToast(`"${track.title}" agregada a la cola`);
+    setToast(`"${track.title}" agregada`);
+  };
+
+  // --- FUNCIÓN PARA ENVIAR MENSAJE ---
+  const handleSendMsg = async () => {
+    if (!msgText.trim()) return;
+    setSendingMsg(true);
+    try {
+      const { error } = await supabase
+        .from('screen_messages')
+        .insert([{ 
+          text: msgText, 
+          author: msgAuthor || "Invitado",
+          status: 'pending' // El admin lo aprueba
+        }]);
+      
+      if (error) throw error;
+      
+      setToast("Mensaje enviado a moderación ✨");
+      setMsgText("");
+      setShowMsgModal(false);
+    } catch (e) {
+      console.error(e);
+      setToast("Error al enviar mensaje");
+    } finally {
+      setSendingMsg(false);
+    }
   };
 
   const bg = "#0a0a0a";
@@ -232,19 +242,18 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
     <div style={{
       background: bg, minHeight: "100vh", color: "#fff",
       fontFamily: "system-ui, -apple-system, sans-serif",
-      maxWidth: 480, margin: "0 auto", paddingBottom: 32,
+      maxWidth: 480, margin: "0 auto", paddingBottom: 100, // Espacio para el botón flotante
     }}>
       {toast && <Toast msg={toast} onDone={() => setToast("")} />}
 
+      {/* HEADER Y BUSCADOR */}
       <div style={{
         padding: "20px 18px 12px", position: "sticky", top: 0,
         background: bg, zIndex: 10, borderBottom: `1px solid ${border}`,
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
           <div style={{ fontSize: 10, color: muted, letterSpacing: "0.14em", fontWeight: 600 }}>GASTROBAR</div>
-          {keysInfo && (
-            <span style={{ fontSize: 10, color: "rgba(255,185,0,0.7)" }}>⚠ {keysInfo}</span>
-          )}
+          {keysInfo && <span style={{ fontSize: 10, color: "rgba(255,185,0,0.7)" }}>⚠ {keysInfo}</span>}
         </div>
         <div style={{ fontSize: 20, fontWeight: 700, color: "#fff", marginBottom: 14 }}>Pide tu canción</div>
 
@@ -263,125 +272,153 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
             placeholder="Artista, canción o álbum..."
             style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: 15, fontFamily: "inherit" }}
           />
-          {query && (
-            <button onClick={() => { setQuery(""); setResults([]); }}
-              style={{ background: "none", border: "none", color: muted, cursor: "pointer", padding: 0, fontSize: 16, lineHeight: 1 }}>✕</button>
-          )}
         </div>
-        
-        {/* NUEVO: Mensaje de ayuda visual para los 3 caracteres */}
-        {query.trim().length > 0 && query.trim().length < 3 && (
-          <div style={{ fontSize: 11, color: "#1db954", marginTop: 8, paddingLeft: 4, opacity: 0.8 }}>
-            Escribe al menos 3 letras para buscar...
-          </div>
-        )}
-
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
 
+      {/* BOTÓN FLOTANTE PARA MENSAJES */}
+      <button 
+        onClick={() => setShowMsgModal(true)}
+        style={{
+          position: "fixed", bottom: 20, right: 20, width: 56, height: 56,
+          borderRadius: "50%", background: "#1db954", color: "#000",
+          border: "none", boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer", zIndex: 100, transition: "transform 0.2s"
+        }}
+        onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.9)"}
+        onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+      </button>
+
+      {/* MODAL DE MENSAJE */}
+      {showMsgModal && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+          background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex",
+          alignItems: "center", justifyContent: "center", padding: 20, backdropFilter: "blur(4px)"
+        }}>
+          <div style={{
+            background: surface, width: "100%", maxWidth: 400, boxSizing: "border-box",
+            borderRadius: 20, padding: 24, border: `1px solid ${border}`,
+            animation: "modalIn 0.3s ease"
+          }}>
+            <h3 style={{ marginTop: 0, fontSize: 18, color: "#1db954" }}>Enviar saludo a la pantalla</h3>
+            
+            <input 
+              placeholder="Tu nombre (opcional)"
+              value={msgAuthor}
+              onChange={(e) => setMsgAuthor(e.target.value)}
+              style={{
+                width: "100%", boxSizing: "border-box", background: bg, border: `1px solid ${border}`,
+                padding: "12px", borderRadius: 8, color: "#fff", marginBottom: 12, outline: "none"
+              }}
+            />
+            
+            <textarea 
+              placeholder="¿Qué quieres decir?"
+              value={msgText}
+              onChange={(e) => setMsgText(e.target.value)}
+              maxLength={100}
+              rows={3}
+              style={{
+                width: "100%", boxSizing: "border-box", background: bg, border: `1px solid ${border}`,
+                padding: "12px", borderRadius: 8, color: "#fff", marginBottom: 8,
+                outline: "none", resize: "none", fontFamily: "inherit"
+              }}
+            />
+            <div style={{ fontSize: 11, color: muted, textAlign: "right", marginBottom: 20 }}>
+              {msgText.length}/100 caracteres
+            </div>
+
+            <div style={{ display: "flex", gap: 12 }}>
+              <button 
+                onClick={() => setShowMsgModal(false)}
+                style={{ flex: 1, background: "transparent", color: "#fff", border: `1px solid ${border}`, padding: "12px", borderRadius: 30, cursor: "pointer" }}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleSendMsg}
+                disabled={!msgText.trim() || sendingMsg}
+                style={{ 
+                  flex: 1, 
+                  background: !msgText.trim() || sendingMsg ? muted : "#1db954", 
+                  color: "#000", border: "none", padding: "12px", 
+                  borderRadius: 30, cursor: "pointer", fontWeight: "bold" 
+                }}
+              >
+                {sendingMsg ? "Enviando..." : "Enviar"}
+              </button>
+            </div>
+          </div>
+          <style>{`@keyframes modalIn{from{opacity:0;transform:scale(0.9)}to{opacity:1;transform:scale(1)}}`}</style>
+        </div>
+      )}
+
+      {/* SONANDO AHORA */}
       <div style={{ margin: "14px 14px 0" }}>
         <div style={{
           background: surface, borderRadius: 14, padding: "12px 14px",
           display: "flex", alignItems: "center", gap: 12,
           border: "1px solid rgba(29,185,84,0.2)",
         }}>
-          <img
-            src={currentTrack?.img || MOCK_NOW.img}
-            alt=""
-            style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 }}
-          />
+          <img src={currentTrack?.img || MOCK_NOW.img} style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 10, color: "#1db954", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 2 }}>SONANDO AHORA</div>
             <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {currentTrack?.title || MOCK_NOW.title}
             </div>
-            <div style={{ fontSize: 12, color: muted }}>
-              {currentTrack?.artist || MOCK_NOW.artist}
-            </div>
+            <div style={{ fontSize: 12, color: muted }}>{currentTrack?.artist || MOCK_NOW.artist}</div>
           </div>
           <EqBars />
         </div>
       </div>
 
-      {error && (
-        <div style={{ margin: "14px 14px 0", padding: "12px 14px", background: "rgba(255,60,60,0.08)", border: "1px solid rgba(255,60,60,0.2)", borderRadius: 12, fontSize: 13, color: "#ff6b6b" }}>
-          ⚠ {error}
-        </div>
-      )}
-
+      {/* RESULTADOS Y COLA (Igual que antes) */}
       {(query.trim().length >= 3 || searching) && !error && (
         <div style={{ margin: "18px 14px 0" }}>
-          <div style={{ fontSize: 10, color: muted2, letterSpacing: "0.12em", fontWeight: 600, marginBottom: 10, paddingLeft: 4 }}>
-            {searching ? "BUSCANDO EN YOUTUBE..." : results.length > 0 ? `${results.length} RESULTADOS` : "SIN RESULTADOS"}
+          <div style={{ fontSize: 10, color: muted2, letterSpacing: "0.12em", fontWeight: 600, marginBottom: 10 }}>
+            {searching ? "BUSCANDO EN YOUTUBE..." : `${results.length} RESULTADOS`}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {results.map((track) => {
-              const isAdded = added.has(track.id);
-              return (
-                <div key={track.id} style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "9px 10px", background: surface, borderRadius: 12, border: `1px solid ${border}`,
-                }}>
-                  <img src={track.img} alt="" style={{ width: 46, height: 46, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
-                    <div style={{ fontSize: 11, color: muted, marginTop: 1 }}>{track.artist}{track.duration ? ` · ${track.duration}` : ""}</div>
-                  </div>
-                  <button onClick={() => addToQueue(track)} style={{
-                    width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
-                    cursor: isAdded ? "default" : "pointer", border: "none",
-                    background: isAdded ? "rgba(29,185,84,0.15)" : "#1db954",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    transition: "background 0.2s, transform 0.1s",
-                  }}
-                    onMouseDown={(e) => !isAdded && (e.currentTarget.style.transform = "scale(0.92)")}
-                    onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-                  >
-                    {isAdded
-                      ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1db954" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                      : <svg width="12" height="12" viewBox="0 0 10 10" fill="#000"><polygon points="3,1 9,5 3,9"/></svg>
-                    }
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+          {results.map((track) => (
+            <div key={track.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 10px", background: surface, borderRadius: 12, marginBottom: 4, border: `1px solid ${border}` }}>
+              <img src={track.img} style={{ width: 46, height: 46, borderRadius: 8, objectFit: "cover" }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
+                <div style={{ fontSize: 11, color: muted }}>{track.artist} · {track.duration}</div>
+              </div>
+              <button onClick={() => addToQueue(track)} style={{
+                width: 34, height: 34, borderRadius: "50%", border: "none",
+                background: added.has(track.id) ? "rgba(29,185,84,0.15)" : "#1db954",
+                display: "flex", alignItems: "center", justifyContent: "center"
+              }}>
+                {added.has(track.id) 
+                  ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1db954" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  : <svg width="12" height="12" viewBox="0 0 10 10" fill="#000"><polygon points="3,1 9,5 3,9"/></svg>
+                }
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
       {queue.length > 0 && (
         <div style={{ margin: "22px 14px 0" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, paddingLeft: 4 }}>
-            <span style={{ fontSize: 10, color: muted2, letterSpacing: "0.12em", fontWeight: 600 }}>EN COLA</span>
-            <span style={{ fontSize: 11, color: muted2 }}>{queue.length} {queue.length === 1 ? "canción" : "canciones"}</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: "28rem", overflowY: "auto", paddingRight: 4 }}>
-            {queue.map((track, i) => (
-              <div key={track.id + i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 10px", borderRadius: 12, opacity: i === safeCurrentIdx ? 1 : 0.55 }}>
-                <div style={{ width: 22, textAlign: "center", fontSize: 12, color: i === safeCurrentIdx ? "#1db954" : muted2, fontFamily: "monospace", flexShrink: 0 }}>
-                  {i === safeCurrentIdx ? "▶" : i + 1}
-                </div>
-                <img src={track.img} alt="" style={{ width: 38, height: 38, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: i === safeCurrentIdx ? "#fff" : "rgba(255,255,255,0.75)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
-                  <div style={{ fontSize: 11, color: muted, marginTop: 1 }}>{track.artist}</div>
-                </div>
-                {track.duration && <div style={{ fontSize: 11, color: muted2, fontFamily: "monospace", flexShrink: 0 }}>{track.duration}</div>}
+          <div style={{ fontSize: 10, color: muted2, fontWeight: 600, marginBottom: 10 }}>EN COLA ({queue.length})</div>
+          {queue.map((track, i) => (
+            <div key={track.id + i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 10px", opacity: i === safeCurrentIdx ? 1 : 0.5 }}>
+              <div style={{ width: 22, fontSize: 12, color: i === safeCurrentIdx ? "#1db954" : muted2 }}>{i === safeCurrentIdx ? "▶" : i + 1}</div>
+              <img src={track.img} style={{ width: 38, height: 38, borderRadius: 6, objectFit: "cover" }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
+                <div style={{ fontSize: 11, color: muted }}>{track.artist}</div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       )}
-
-      {!query && queue.length === 0 && !error && (
-        <div style={{ textAlign: "center", padding: "3rem 2rem", color: muted }}>
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={muted} strokeWidth="1.5" strokeLinecap="round" style={{ marginBottom: 12 }}>
-            <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-          </svg>
-          <div style={{ fontSize: 15, fontWeight: 500, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>¿Qué quieres escuchar?</div>
-          <div style={{ fontSize: 13 }}>Busca una canción y agrégala a la cola</div>
-        </div>
-      )}
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }

@@ -363,7 +363,7 @@ export default function TvView({ queue = [], currentIdx = 0, onTrackEnd, onTrack
         <div style={{
           position: "fixed", inset: 0, zIndex: 2000,
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-          background: "rgba(0,0,0,0.92)", backdropFilter: "blur(25px)",
+          background: "rgba(0,0,0,0.85)", backdropFilter: "blur(25px)",
           animation: "fadeIn 0.6s ease-out", textAlign: "center", padding: "5vw"
         }}>
           {/* Cabecera */}
