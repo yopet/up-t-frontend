@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { supabase } from "./lib/supabase";
 import TvView from "./TvView";
+import TvViewVideo from "./TvViewVideo";
 import CustomerView from "./CustomerView";
 import AdminView from "./AdminView";
 
@@ -38,6 +39,7 @@ export default function App() {
   const [currentMessage, setCurrentMessage] = useState(null);
   const [messageAuthor, setMessageAuthor] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [autoPlay, setAutoPlay] = useState(true);
 
   const normalizeQueueItem = useCallback((item) => {
     const song = item.songs_repository || item.song || {};
@@ -51,7 +53,8 @@ export default function App() {
       title: song.title ?? item.title ?? "Canción desconocida",
       artist: song.artist ?? item.artist ?? "Artista desconocido",
       duration: rawDuration ? formatDurationText(rawDuration) : "",
-      color: song.color ?? item.color ?? ACCENT_COLORS[item.id % ACCENT_COLORS.length],
+      color: song.color ?? item.color ?? ACCENT_COLORS[Math.abs(item.id.split('-').length) % ACCENT_COLORS.length],
+      isApproved: item.is_approved ?? true,
       img: song.img ?? song.img_url ?? item.img ?? item.img_url ?? "https://picsum.photos/seed/default/600/600",
       album: song.album ?? item.album ?? "Single",
       qr: song.qr ?? item.qr ?? SCAN_URL,
@@ -126,13 +129,17 @@ export default function App() {
     return inserted?.id ?? null;
   }, []);
 
-  const addQueueRow = useCallback(async (song) => {
+  const addQueueRow = useCallback(async (song, forceApprove = false) => {
     const repositoryId = await persistSongRepository(song);
     if (!repositoryId) return null;
 
     const { data, error } = await supabase
       .from("queue")
-      .insert({ song_id: repositoryId, requested_at: new Date().toISOString() })
+      .insert({ 
+        song_id: repositoryId, 
+        requested_at: new Date().toISOString(),
+        is_approved: forceApprove || autoPlay // Si es del admin o autoPlay está activo
+      })
       .select("*, songs_repository(*)")
       .maybeSingle();
 
@@ -141,13 +148,13 @@ export default function App() {
       return null;
     }
     return data ? normalizeQueueItem(data) : null;
-  }, [persistSongRepository]);
+  }, [persistSongRepository, autoPlay, normalizeQueueItem]);
 
   useEffect(() => {
     const loadData = async () => {
       const appStatePromise = supabase
         .from("app_state")
-        .select("volume,current_idx,is_playing,current_message,message_author")
+        .select("volume,current_idx,is_playing,current_message,message_author,auto_play")
         .eq("id", "main-config")
         .maybeSingle();
 
@@ -160,6 +167,7 @@ export default function App() {
         if (data.volume !== undefined) setVolume(data.volume);
         if (data.current_idx !== undefined) setCurrentIdx(data.current_idx);
         if (data.is_playing !== undefined) setIsPlaying(data.is_playing);
+        if (data.auto_play !== undefined) setAutoPlay(data.auto_play);
         if (data.current_message !== undefined) setCurrentMessage(data.current_message);
         if (data.message_author !== undefined) setMessageAuthor(data.message_author);
       } else {
@@ -193,6 +201,7 @@ export default function App() {
           if (typeof record.volume === "number") setVolume(record.volume);
           if (typeof record.current_idx === "number") setCurrentIdx(record.current_idx);
           if (typeof record.is_playing === "boolean") setIsPlaying(record.is_playing);
+          if (typeof record.auto_play === "boolean") setAutoPlay(record.auto_play);
           if (record.current_message !== undefined) setCurrentMessage(record.current_message);
           if (record.message_author !== undefined) setMessageAuthor(record.message_author);
         }
@@ -240,17 +249,17 @@ export default function App() {
   useEffect(() => {
     if (currentMessage) {
       const timer = setTimeout(() => {
-       updateAppState({ current_message: null, message_author: null }); // Limpiamos ambos en DB
-      setMessageAuthor(null); // Limpiamos local
+        updateAppState({ current_message: null, message_author: null }); // Limpiamos ambos en DB
+        setMessageAuthor(null); // Limpiamos local
       }, 10000);
       return () => clearTimeout(timer);
     }
   }, [currentMessage, updateAppState]);
 
-  const handleSongRequest = useCallback(async (song) => {
+  const handleSongRequest = useCallback(async (song, forceApprove = false) => {
     if (queue.some((s) => s.id === song.id)) return;
 
-    const newEntry = await addQueueRow(song);
+    const newEntry = await addQueueRow(song, forceApprove);
     if (!newEntry) return;
 
     setQueue((prev) => {
@@ -284,6 +293,17 @@ export default function App() {
     }
   }, [updateAppState]);
 
+  const handleApproveSong = useCallback(async (queueRowId) => {
+    const { error } = await supabase
+      .from("queue")
+      .update({ 
+        is_approved: true, 
+        requested_at: new Date().toISOString() // La movemos al final de la cola activa
+      })
+      .eq("id", queueRowId);
+    if (error) console.error("Error aprobando canción:", error);
+  }, []);
+
   const handlePlayNow = useCallback((idx) => {
     setCurrentIdx(idx);
     updateAppState({ current_idx: idx });
@@ -303,40 +323,61 @@ export default function App() {
     }
   }, [currentIdx, queue.length, updateAppState]);
 
+  const handleToggleAutoPlay = useCallback((val) => {
+    setAutoPlay(val);
+    updateAppState({ auto_play: val });
+  }, [updateAppState]);
+
+  const approvedQueue = queue.filter(s => s.isApproved);
+
   return (
     <BrowserRouter>
       <Routes>
         {/* Pasamos el volumen a la TV para que lo aplique al reproductor */}
-        <Route 
-          path="/tv" 
+        <Route
+          path="/tv"
           element={
-            <TvView 
-              queue={queue} 
-              currentIdx={currentIdx} 
-              onTrackEnd={handleTrackEnd} 
+            <TvView
+              queue={approvedQueue}
+              currentIdx={currentIdx}
+              onTrackEnd={handleTrackEnd}
               onTrackChange={handlePlayNow}
-              volume={volume} 
+              volume={volume}
               currentMessage={currentMessage}
               message_author={messageAuthor}
             />
-          } 
+          }
         />
-        
+
         {/* Pasamos volumen y la función setVolume al Admin */}
-        <Route 
-          path="/admin" 
+        <Route
+          path="/admin"
           element={
-            <AdminView 
-              queue={queue} 
-              currentIdx={currentIdx} 
-              onRemove={handleRemoveFromQueue} 
-              onPlay={handlePlayNow} 
-              onAddSong={handleSongRequest}
+            <AdminView
+              queue={queue}
+              currentIdx={currentIdx}
+              onRemove={handleRemoveFromQueue}
+              onPlay={handlePlayNow}
+              onAddSong={(song) => handleSongRequest(song, true)}
               onClearQueue={handleClearQueue}
+              onApprove={handleApproveSong}
+              autoPlay={autoPlay}
+              onToggleAutoPlay={handleToggleAutoPlay}
               volume={volume}
               onVolumeChange={handleVolumeChange}
             />
-          } 
+          }
+        />
+        <Route
+          path="/tvVideo"
+          element={
+            <TvViewVideo
+              queue={approvedQueue}
+              currentIdx={currentIdx}
+              volume={volume}
+              onTrackEnd={handleTrackEnd}
+            />
+          }
         />
 
         <Route path="/scan" element={<CustomerView onSongRequest={handleSongRequest} queue={queue} currentIdx={currentIdx} />} />

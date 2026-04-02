@@ -87,13 +87,12 @@ function NewBadge({ track, onDone }) {
 }
 
 export default function AdminView({ 
-  queue = [], currentIdx = 0, onRemove, onPlay, onAddSong, onClearQueue, volume = 50, onVolumeChange 
+  queue = [], currentIdx = 0, onRemove, onPlay, onAddSong, onClearQueue, onApprove, autoPlay, onToggleAutoPlay, volume = 50, onVolumeChange 
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
-  const [approvedIds, setApprovedIds] = useState(new Set());
   const [lastNewTrack, setLastNewTrack] = useState(null);
   const prevQueueLen = useRef(queue.length);
   const [localVol, setLocalVol] = useState(volume);
@@ -204,7 +203,9 @@ export default function AdminView({
     }
   };
 
-  const upcomingVotes = queue.filter((_, idx) => idx > currentIdx);
+  const approvedQueue = queue.filter(s => s.isApproved);
+  const pendingRequests = queue.filter(s => !s.isApproved);
+  
   const panelStyle = { background: '#181818', borderRadius: '12px', padding: '20px', border: '1px solid #282828' };
   const headerStyle = { fontSize: '13px', color: '#b3b3b3', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '20px', fontWeight: '700' };
   const actionBtn = { border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s' };
@@ -217,12 +218,27 @@ export default function AdminView({
           <div style={{ width: '12px', height: '12px', background: '#1DB954', borderRadius: '50%', boxShadow: '0 0 10px #1DB954' }}></div>
           <h1 style={{ fontSize: '22px', fontWeight: '800', margin: 0 }}>UP-T <span style={{ color: '#1DB954' }}>ADMIN</span></h1>
         </div>
+         {/* SWITCH DE REPRODUCCIÓN AUTOMÁTICA */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#1a1a1a', padding: '8px 16px', borderRadius: '30px', border: '1px solid #333' }}>
+          <span style={{ fontSize: '11px', fontWeight: '700', color: autoPlay ? '#1DB954' : '#888' }}>
+            {autoPlay ? 'AUTO-PLAY ON' : 'MODERACIÓN ACTIVADA'}
+          </span>
+          <div 
+            onClick={() => onToggleAutoPlay(!autoPlay)}
+            style={{ width: '36px', height: '18px', background: autoPlay ? '#1DB954' : '#444', borderRadius: '20px', position: 'relative', cursor: 'pointer', transition: '0.3s' }}
+          >
+            <div style={{ width: '14px', height: '14px', background: '#fff', borderRadius: '50%', position: 'absolute', top: '2px', left: autoPlay ? '20px' : '2px', transition: '0.3s' }} />
+          </div>          
+        </div>        
         {/* AQUÍ VOLVIÓ: Bogotá • Gastrobar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <div style={{ background: '#282828', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', color: '#b3b3b3', border: '1px solid #333' }}>
             Bogotá • Gastrobar
           </div>
-          <button onClick={() => window.open('/tv', '_blank')} style={{ background: '#1DB954', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '20px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+         {/*  <button onClick={() => window.open('/tv', '_blank')} style={{ background: '#1DB954', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '20px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <IconTv /> ABRIR TV
+          </button> */}
+          <button onClick={() => window.open('/tvVideo', '_blank')} style={{ background: '#1DB954', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '20px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <IconTv /> ABRIR TV
           </button>
         </div>
@@ -273,21 +289,21 @@ export default function AdminView({
           {/* COLA DE REPRODUCCIÓN */}
           <div style={panelStyle}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <h2 style={headerStyle}>Cola de Reproducción ({queue.length})</h2>
-              {queue.length > 0 && (
+              <h2 style={headerStyle}>Cola de Reproducción ({approvedQueue.length})</h2>
+              {approvedQueue.length > 0 && (
                 <button onClick={() => window.confirm("¿Vaciar lista?") && onClearQueue()} style={{ background: 'transparent', border: '1px solid #ff4444', color: '#ff4444', padding: '6px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>VACIAR LISTA</button>
               )}
             </div>
-            {queue.map((song, idx) => (
-              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px 0', borderBottom: '1px solid #282828', background: idx === currentIdx ? '#1db95408' : 'transparent' }}>
+            {approvedQueue.map((song, idx) => (
+              <div key={song.queueRowId} style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px 0', borderBottom: '1px solid #282828', background: idx === currentIdx ? '#1db95408' : 'transparent' }}>
                 <div style={{ width: '25px', fontSize: '12px', color: idx === currentIdx ? '#1DB954' : '#555', fontWeight: 'bold' }}>{idx === currentIdx ? '▶' : idx + 1}</div>
                 <img src={song.img} style={{ width: '40px', height: '40px', borderRadius: '4px' }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: '600', fontSize: '14px', color: idx === currentIdx ? '#1DB954' : '#fff' }}>{song.title}</div>
                   <div style={{ color: '#b3b3b3', fontSize: '12px' }}>{song.artist}</div>
                 </div>
-                {idx !== currentIdx && <button onClick={() => onPlay(idx)} style={{ background: 'transparent', border: '1px solid #444', color: '#aaa', padding: '5px 12px', borderRadius: '15px', fontSize: '10px', cursor: 'pointer' }}>SONAR YA</button>}
-                <button onClick={() => onRemove(idx)} style={{ ...actionBtn, background: 'transparent', color: '#ff4444' }}><IconTrash /></button>
+                {idx !== currentIdx && <button onClick={() => onPlay(idx)} style={{ background: 'transparent', border: '1px solid #444', color: '#aaa', padding: '5px 12px', borderRadius: '15px', fontSize: '10px', cursor: 'pointer' }}>Reproducir</button>}
+                <button onClick={() => onRemove(queue.indexOf(song))} style={{ ...actionBtn, background: 'transparent', color: '#ff4444' }}><IconTrash /></button>
               </div>
             ))}
           </div>
@@ -318,20 +334,18 @@ export default function AdminView({
           </div>
 
           <div style={{ ...panelStyle, background: '#121212', border: '1px solid #333' }}>
-            <h2 style={headerStyle}>Solicitudes de Clientes</h2>
-            {upcomingVotes.length === 0 ? <p style={{ fontSize: '12px', color: '#555', textAlign: 'center' }}>No hay pedidos nuevos</p> : 
-              upcomingVotes.map((song, idx) => (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', padding: '10px', background: '#1c1c1c', borderRadius: '8px' }}>
+            <h2 style={headerStyle}>Pedidos por Aprobar ({pendingRequests.length})</h2>
+            {pendingRequests.length === 0 ? <p style={{ fontSize: '12px', color: '#555', textAlign: 'center' }}>No hay solicitudes pendientes</p> : 
+              pendingRequests.map((song) => (
+                <div key={song.queueRowId} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', padding: '10px', background: '#1c1c1c', borderRadius: '8px' }}>
                   <img src={song.img} style={{ width: '32px', height: '32px', borderRadius: '4px' }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '11px', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{song.title}</div>
                   </div>
-                  {!approvedIds.has(song.id) ? (
-                    <div style={{ display: 'flex', gap: '5px' }}>
-                      <button onClick={() => setApprovedIds(new Set([...approvedIds, song.id]))} style={{ ...actionBtn, width: 28, height: 28, background: '#1DB954' }}><IconCheck /></button>
-                      <button onClick={() => onRemove(queue.indexOf(song))} style={{ ...actionBtn, width: 28, height: 28, background: 'transparent', color: '#ff4444' }}><IconTrash /></button>
-                    </div>
-                  ) : <div style={{ color: '#1DB954' }}><IconCheck /></div>}
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                    <button onClick={() => onApprove(song.queueRowId)} style={{ ...actionBtn, width: 28, height: 28, background: '#1DB954' }} title="Aprobar"><IconCheck /></button>
+                    <button onClick={() => onRemove(queue.indexOf(song))} style={{ ...actionBtn, width: 28, height: 28, background: 'transparent', color: '#ff4444' }} title="Rechazar"><IconTrash /></button>
+                  </div>
                 </div>
               ))
             }
