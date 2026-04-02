@@ -12,6 +12,7 @@ const API_KEYS = [
 
 const EXHAUSTED_KEY = "yt_exhausted_keys";
 const EXHAUSTED_UNTIL_KEY = "yt_exhausted_until";
+const COOLDOWN_MINUTES = 2; // Tiempo de espera entre canciones
 
 function getAvailableKey() {
   const until = parseInt(localStorage.getItem(EXHAUSTED_UNTIL_KEY) || "0");
@@ -97,6 +98,14 @@ function Toast({ msg, onDone }) {
     </div>
   );
 }
+// Utilidad para convertir "04:15" o "1:20:05" a segundos totales
+const parseDurationString = (value) => {
+  if (!value) return 0;
+  const parts = String(value).split(":").map(Number);
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return parts[0] || 0;
+};
 
 export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0 }) {
   const [query, setQuery] = useState("");
@@ -198,12 +207,42 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
     return () => { clearTimeout(timeout); ctrl.abort(); };
   }, [query]);
 
-  const addToQueue = (track) => {
-    if (added.has(track.id)) return;
-    if (onSongRequest) onSongRequest(track);
-    setAdded((s) => new Set([...s, track.id]));
-    setToast(`"${track.title}" agregada`);
-  };
+// ... dentro de export default function CustomerView ...
+
+const addToQueue = (track) => {
+  // 1. Evitar duplicados visuales en la sesión actual
+  if (added.has(track.id)) return;
+
+  // --- NUEVA VALIDACIÓN: COOLDOWN (Punto 1) ---
+  const lastRequest = localStorage.getItem("last_song_request");
+  const now = Date.now();
+  const cooldownMs = COOLDOWN_MINUTES * 60 * 1000;
+
+  if (lastRequest && (now - parseInt(lastRequest)) < cooldownMs) {
+    const remainingMs = cooldownMs - (now - parseInt(lastRequest));
+    const remainingMin = Math.ceil(remainingMs / 60000);
+    setToast(`⏳ Espera ${remainingMin} min para pedir otra`);
+    return;
+  }
+
+  // --- VALIDACIÓN DE DURACIÓN (Punto 3) ---
+  const seconds = parseDurationString(track.duration);
+  const MAX_SECONDS = 480; // 8 minutos
+
+  if (seconds > MAX_SECONDS) {
+    setToast("⚠️ Canción demasiado larga (máx. 8 min)");
+    return;
+  }
+
+  // --- SI PASA TODAS LAS PRUEBAS ---
+  if (onSongRequest) onSongRequest(track);
+  
+  // Guardar el momento de la petición para el cooldown
+  localStorage.setItem("last_song_request", now.toString());
+  
+  setAdded((s) => new Set([...s, track.id]));
+  setToast(`"${track.title}" agregada a la cola`);
+};
 
   // --- FUNCIÓN PARA ENVIAR MENSAJE ---
   const handleSendMsg = async () => {

@@ -265,16 +265,16 @@ export default function TvViewVideo({
                     backdropFilter: "blur(15px)", textAlign: "center", padding: "2rem", animation: "fadeIn 0.5s ease" 
                 }}>
                     <div style={{ fontSize: "1rem", color: track.color, fontWeight: 800, letterSpacing: "0.5em", marginBottom: "1.5vh", textTransform: "uppercase" }}>✨ Pedido Especial ✨</div>
-                    <div style={{ fontSize: "clamp(1.5rem, 4vw, 3rem)", fontWeight: 900, color: "#fff", lineHeight: 1.1 }}>{displayMessage.text}</div>
-                    <div style={{ marginTop: "1.5vh", fontSize: "1.5rem", color: track.color, fontWeight: 600, fontStyle: "italic" }}>— {displayMessage.author}</div>
+                    <div style={{ fontSize: "clamp(1.5rem, 8vw, 8rem)", fontWeight: 900, color: "#fff", lineHeight: 1.1 }}>{displayMessage.text}</div>
+                    <div style={{ marginTop: "1.5vh", fontSize: "2rem", color: track.color, fontWeight: 600, fontStyle: "italic" }}>— {displayMessage.author}</div>
                 </div>
             )}
           </div>
 
-          <div style={{ flexShrink: 0, paddingLeft: 10, paddingTop: "0.75rem", paddingBottom: "0.5rem" }}>
+          <div style={{ flexShrink: 0, paddingLeft: 10, paddingTop: "0.75rem" }}>
             <div key={track.id} style={{ animation: "slideUp 0.6s ease" }}>
-              <div style={{ fontSize: "clamp(1.2rem, 2.5vw, 2rem)", fontWeight: 800, color: "#fff", lineHeight: 1.1, letterSpacing: "-0.02em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
-              <div style={{ fontSize: "0.95rem", color: "rgba(255,255,255,0.55)", marginTop: "0.3rem" }}>{track.artist}</div>
+              <div style={{ fontWeight: 800, color: "#fff", lineHeight: 1.1, letterSpacing: "-0.02em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
+              <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.55)", marginTop: "0.3rem" }}>{track.artist}</div>
             </div>
             <div style={{ marginTop: "0.75rem" }}>
               <div style={{ position: "relative", height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 99, overflow: "hidden" }}>
