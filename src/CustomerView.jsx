@@ -43,28 +43,6 @@ function isQuotaError(data) {
   );
 }
 
-// MEJORADO: Sugerencias con tiempo de espera para evitar que la lista se pegue
-const getSuggestions = async (term) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 segundos máximo
-
-  try {
-    const res = await fetch(
-      `https://api.allorigins.win/get?url=${encodeURIComponent(
-        `https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q=${term}`
-      )}`,
-      { signal: controller.signal }
-    );
-    clearTimeout(timeoutId);
-    const data = await res.json();
-    if (!data.contents) return [];
-    const parsedData = JSON.parse(data.contents);
-    return parsedData[1] || [];
-  } catch (e) {
-    return [];
-  }
-};
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 const MOCK_NOW = {
@@ -153,34 +131,31 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
     setAdded(new Set(queue.map((song) => song.id)));
   }, [queue]);
 
- // Sustituye el useEffect de sugerencias (línea 143 aprox.) por este:
-useEffect(() => {
-  const q = query.trim();
-  if (q.length < 3) { setSuggestions([]); return; }
+  // Sugerencias con JSONP para evitar bloqueos de CORS y errores de proxy
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 3) { setSuggestions([]); return; }
 
-  const timeout = setTimeout(() => {
-    // Definimos el nombre de la función global que recibirá la respuesta
-    const callbackName = 'googleSuggestCallback_' + Math.random().toString(36).substr(2, 9);
-    
-    window[callbackName] = (data) => {
-      if (data && data[1]) {
-        setSuggestions(data[1].map(item => item[0]));
-      }
-      // Limpieza: eliminamos el script y la función global después de usarla
-      delete window[callbackName];
-      const script = document.getElementById(callbackName);
-      if (script) script.remove();
-    };
+    const timeout = setTimeout(() => {
+      const callbackName = 'googleSuggestCallback_' + Math.random().toString(36).substr(2, 9);
+      
+      window[callbackName] = (data) => {
+        if (data && data[1]) {
+          setSuggestions(data[1].map(item => item[0]));
+        }
+        delete window[callbackName];
+        const script = document.getElementById(callbackName);
+        if (script) script.remove();
+      };
 
-    const script = document.createElement('script');
-    script.id = callbackName;
-    // Usamos el parámetro callback para JSONP, esto ignora los CORS
-    script.src = `https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&q=${encodeURIComponent(q)}&callback=${callbackName}`;
-    document.body.appendChild(script);
-  }, 300);
+      const script = document.createElement('script');
+      script.id = callbackName;
+      script.src = `https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&q=${encodeURIComponent(q)}&callback=${callbackName}`;
+      document.body.appendChild(script);
+    }, 300);
 
-  return () => clearTimeout(timeout);
-}, [query]);
+    return () => clearTimeout(timeout);
+  }, [query]);
 
   const performSearch = async (term) => {
     if (!term.trim()) return;
@@ -322,7 +297,6 @@ useEffect(() => {
         </div>
         <div style={{ fontSize: 20, fontWeight: 700, color: "#fff", marginBottom: 14 }}>Pide tu canción</div>
 
-        {/* INPUT DE BÚSQUEDA CON BOTÓN X */}
         <div style={{
           background: surface2, borderRadius: 12, display: "flex",
           alignItems: "center", gap: 10, padding: "10px 14px", border: `1px solid ${border}`,
@@ -358,7 +332,6 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Sugerencias o aviso de longitud */}
       {!searching && results.length === 0 && (
         <div style={{ margin: "0 18px" }}>
           {query.trim().length > 0 && query.trim().length < 3 ? (
@@ -383,7 +356,6 @@ useEffect(() => {
         </div>
       )}
 
-      {/* SONANDO AHORA */}
       <div style={{ margin: "14px 14px 0" }}>
         <div style={{ background: surface, borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, border: "1px solid rgba(29,185,84,0.2)" }}>
           <img src={currentTrack?.img || MOCK_NOW.img} style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" }} />
@@ -396,7 +368,6 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* RESULTADOS DE BÚSQUEDA */}
       {!error && results.length > 0 && (
         <div style={{ margin: "18px 14px 0" }}>
           <div style={{ fontSize: 10, color: muted2, letterSpacing: "0.12em", fontWeight: 600, marginBottom: 10 }}>RESULTADOS</div>
@@ -415,20 +386,30 @@ useEffect(() => {
         </div>
       )}
 
-      {/* COLA DE REPRODUCCIÓN */}
+      {/* COLA DE REPRODUCCIÓN FILTRADA */}
       {queue.length > 0 && (
         <div style={{ margin: "22px 14px 0" }}>
-          <div style={{ fontSize: 10, color: muted2, fontWeight: 600, marginBottom: 10 }}>EN COLA ({queue.length})</div>
-          {queue.map((track, i) => (
-            <div key={track.id + i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 10px", opacity: i === safeCurrentIdx ? 1 : 0.5 }}>
-              <div style={{ width: 22, fontSize: 12, color: i === safeCurrentIdx ? "#1db954" : muted2 }}>{i === safeCurrentIdx ? "▶" : i + 1}</div>
-              <img src={track.img} style={{ width: 38, height: 38, borderRadius: 6, objectFit: "cover" }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
-                <div style={{ fontSize: 11, color: muted }}>{track.artist}</div>
+          <div style={{ fontSize: 10, color: muted2, fontWeight: 600, marginBottom: 10 }}>
+            A CONTINUACIÓN ({Math.max(0, queue.length - (safeCurrentIdx + 1))})
+          </div>
+          {queue
+            .map((track, i) => ({ ...track, originalIdx: i }))
+            .filter((_, i) => i > safeCurrentIdx)
+            .map((track) => (
+              <div key={track.id + track.originalIdx} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 10px" }}>
+                <div style={{ width: 22, fontSize: 12, color: muted2 }}>{track.originalIdx + 1}</div>
+                <img src={track.img} style={{ width: 38, height: 38, borderRadius: 6, objectFit: "cover" }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
+                  <div style={{ fontSize: 11, color: muted }}>{track.artist}</div>
+                </div>
               </div>
+            ))}
+          {safeCurrentIdx >= queue.length - 1 && (
+            <div style={{ padding: "20px", textAlign: "center", color: muted2, fontSize: 13, border: `1px dashed ${muted2}`, borderRadius: 12 }}>
+              No hay más canciones en cola. ¡Pide la tuya!
             </div>
-          ))}
+          )}
         </div>
       )}
 
