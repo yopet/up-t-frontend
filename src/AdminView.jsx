@@ -66,7 +66,8 @@ const IconAd = () => (
     <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
     <line x1="7" y1="7" x2="7.01" y2="7" />
   </svg>
-);const IconPlaySmall = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>;
+);
+const IconPlaySmall = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>;
 const IconMessage = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>;
 
 function NewBadge({ track, onDone }) {
@@ -100,6 +101,7 @@ export default function AdminView({
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
   const [lastNewTrack, setLastNewTrack] = useState(null);
@@ -107,7 +109,6 @@ export default function AdminView({
   const [localVol, setLocalVol] = useState(volume);
   const [lastNonZeroVolume, setLastNonZeroVolume] = useState(volume > 0 ? volume : 50);
 
-  // Estados para Publicidad y Mensajes
   const [showAdModal, setShowAdModal] = useState(false);
   const [newAd, setNewAd] = useState({ title: '', image_url: '', frequency: 3 });
   const [screenMessages, setScreenMessages] = useState([]);
@@ -117,7 +118,6 @@ export default function AdminView({
   // ─── LÓGICA DE MENSAJES EN TIEMPO REAL ────────────────────────────────────
   useEffect(() => {
     if (!supabase) return;
-
     const fetchMessages = async () => {
       const { data } = await supabase
         .from('screen_messages')
@@ -126,20 +126,16 @@ export default function AdminView({
         .order('created_at', { ascending: false });
       if (data) setScreenMessages(data);
     };
-
     fetchMessages();
-
     const channel = supabase
       .channel('admin-messages-panel')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'screen_messages' }, (payload) => {
         setScreenMessages(prev => [payload.new, ...prev]);
-        // Notificación sonora para nuevo mensaje
         const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
         audio.volume = 0.2;
         audio.play().catch(() => {});
       })
       .subscribe();
-
     return () => supabase.removeChannel(channel);
   }, []);
 
@@ -154,7 +150,6 @@ export default function AdminView({
     }
   };
 
-  // NOTIFICACIÓN SONORA Y BADGE (Canciones)
   useEffect(() => {
     if (queue.length > prevQueueLen.current) {
       setLastNewTrack(queue[queue.length - 1]);
@@ -165,74 +160,88 @@ export default function AdminView({
     prevQueueLen.current = queue.length;
   }, [queue]);
 
+  // --- LÓGICA DE SUGERENCIAS (getSuggestions) CON PROXY ANTI-CORS ---
+ // Sustituye el useEffect de sugerencias (línea 143 aprox.) por este:
+useEffect(() => {
+  const q = query.trim();
+  if (q.length < 3) { setSuggestions([]); return; }
+
+  const timeout = setTimeout(() => {
+    // Definimos el nombre de la función global que recibirá la respuesta
+    const callbackName = 'googleSuggestCallback_' + Math.random().toString(36).substr(2, 9);
+    
+    window[callbackName] = (data) => {
+      if (data && data[1]) {
+        setSuggestions(data[1].map(item => item[0]));
+      }
+      // Limpieza: eliminamos el script y la función global después de usarla
+      delete window[callbackName];
+      const script = document.getElementById(callbackName);
+      if (script) script.remove();
+    };
+
+    const script = document.createElement('script');
+    script.id = callbackName;
+    // Usamos el parámetro callback para JSONP, esto ignora los CORS
+    script.src = `https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&q=${encodeURIComponent(q)}&callback=${callbackName}`;
+    document.body.appendChild(script);
+  }, 300);
+
+  return () => clearTimeout(timeout);
+}, [query]);
+
   // --- LÓGICA DE BÚSQUEDA ---
-  useEffect(() => {
-    const trimmedQuery = query.trim();
-    if (trimmedQuery.length < 3) { 
-      setResults([]); setError(""); setSearching(false); return; 
-    }
+  const performSearch = async (searchTerm) => {
+    const trimmedQuery = searchTerm.trim();
+    if (trimmedQuery.length < 3) return;
+
     setSearching(true);
     setError("");
-    const ctrl = new AbortController();
-    const timeout = setTimeout(async () => {
-      const searchWithKey = async (key) => {
-        const res = await fetch(
-          `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=6&q=${encodeURIComponent(trimmedQuery)}&key=${key}`,
-          { signal: ctrl.signal }
-        );
-        return res.json();
-      };
-      try {
-        let currentKey = getAvailableKey();
-        if (!currentKey) {
-          setError("Cuota agotada.");
-          setSearching(false);
-          return;
-        }
-        let searchData = await searchWithKey(currentKey);
-        while (isQuotaError(searchData)) {
-          markKeyExhausted(currentKey);
-          currentKey = getAvailableKey();
-          if (!currentKey) {
-            setError("Cuota agotada.");
-            setSearching(false);
-            return;
-          }
-          searchData = await searchWithKey(currentKey);
-        }
-        if (searchData.error) {
-          setError(searchData.error.message);
-          setSearching(false);
-          return;
-        }
-        const items = searchData.items || [];
-        if (!items.length) { setResults([]); setSearching(false); return; }
-        const videoIds = items.map((i) => i.id.videoId).join(",");
-        const detailRes = await fetch(
-          `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds}&key=${currentKey}`,
-          { signal: ctrl.signal }
-        );
-        const detailData = await detailRes.json();
-        const durationMap = {};
-        (detailData.items || []).forEach((v) => {
-          durationMap[v.id] = formatDuration(v.contentDetails.duration);
-        });
-        setResults(items.map((item) => ({
-          id: item.id.videoId,
-          title: item.snippet.title,
-          artist: item.snippet.channelTitle.replace(/ - Topic$| Music$/i, ""),
-          img: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
-          duration: durationMap[item.id.videoId] || "",
-          youtubeId: item.id.videoId,
-        })));
-      } catch (e) {
-        if (e.name !== "AbortError") setError("Error de conexión");
-      } finally {
-        setSearching(false);
+    setSuggestions([]); 
+
+    const searchWithKey = async (key) => {
+      const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=6&q=${encodeURIComponent(trimmedQuery)}&key=${key}`);
+      return res.json();
+    };
+
+    try {
+      let currentKey = getAvailableKey();
+      if (!currentKey) { setError("Cuota agotada."); setSearching(false); return; }
+      
+      let searchData = await searchWithKey(currentKey);
+      while (isQuotaError(searchData)) {
+        markKeyExhausted(currentKey);
+        currentKey = getAvailableKey();
+        if (!currentKey) { setError("Cuota agotada."); setSearching(false); return; }
+        searchData = await searchWithKey(currentKey);
       }
-    }, 600);
-    return () => { clearTimeout(timeout); ctrl.abort(); };
-  }, [query]);
+
+      if (searchData.error) { setError(searchData.error.message); setSearching(false); return; }
+      
+      const items = searchData.items || [];
+      const videoIds = items.map((i) => i.id.videoId).join(",");
+      const detailRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds}&key=${currentKey}`);
+      const detailData = await detailRes.json();
+      
+      const durationMap = {};
+      (detailData.items || []).forEach((v) => {
+        durationMap[v.id] = formatDuration(v.contentDetails.duration);
+      });
+
+      setResults(items.map((item) => ({
+        id: item.id.videoId,
+        title: item.snippet.title,
+        artist: item.snippet.channelTitle.replace(/ - Topic$| Music$/i, ""),
+        img: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
+        duration: durationMap[item.id.videoId] || "",
+        youtubeId: item.id.videoId,
+      })));
+    } catch (e) {
+      setError("Error de conexión");
+    } finally {
+      setSearching(false);
+    }
+  };
 
   const handleVolChange = (e) => {
     const val = parseInt(e.target.value);
@@ -252,7 +261,6 @@ export default function AdminView({
 
   const approvedQueue = queue.filter(s => s.isApproved);
   const pendingRequests = queue.filter(s => !s.isApproved);
-  
   const panelStyle = { background: '#181818', borderRadius: '12px', padding: '20px', border: '1px solid #282828' };
   const headerStyle = { fontSize: '11px', color: '#b3b3b3', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '15px', fontWeight: '700' };
   const actionBtn = { border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s' };
@@ -270,18 +278,13 @@ export default function AdminView({
           <span style={{ fontSize: '11px', fontWeight: '700', color: autoPlay ? '#1DB954' : '#888' }}>
             {autoPlay ? 'AUTO-PLAY ON' : 'MODERACIÓN ACTIVADA'}
           </span>
-          <div 
-            onClick={() => onToggleAutoPlay(!autoPlay)}
-            style={{ width: '36px', height: '18px', background: autoPlay ? '#1DB954' : '#444', borderRadius: '20px', position: 'relative', cursor: 'pointer', transition: '0.3s' }}
-          >
+          <div onClick={() => onToggleAutoPlay(!autoPlay)} style={{ width: '36px', height: '18px', background: autoPlay ? '#1DB954' : '#444', borderRadius: '20px', position: 'relative', cursor: 'pointer', transition: '0.3s' }}>
             <div style={{ width: '14px', height: '14px', background: '#fff', borderRadius: '50%', position: 'absolute', top: '2px', left: autoPlay ? '20px' : '2px', transition: '0.3s' }} />
           </div>          
         </div>        
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div style={{ background: '#282828', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', color: '#b3b3b3', border: '1px solid #333' }}>
-            Bogotá • Gastrobar
-          </div>
+          <div style={{ background: '#282828', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', color: '#b3b3b3', border: '1px solid #333' }}>Bogotá • Gastrobar</div>
           <button onClick={() => window.open('/tvVideo', '_blank')} style={{ background: '#1DB954', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '20px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <IconTv /> ABRIR TV
           </button>
@@ -290,17 +293,11 @@ export default function AdminView({
 
       <div style={{ display: 'grid', gridTemplateColumns: '260px 2fr 1.2fr', gap: '20px', padding: '0 30px 30px' }}>
         
-        {/* COLUMNA 1: ADS Y MENSAJES */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* SECCIÓN PUBLICIDAD */}
           <div style={{ ...panelStyle, borderColor: '#333' }}>
-            <h2 style={{ ...headerStyle, color: '#1DB954', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <IconAd /> Publicidad (Ads)
-            </h2>
+            <h2 style={{ ...headerStyle, color: '#1DB954', display: 'flex', alignItems: 'center', gap: '8px' }}><IconAd /> Publicidad (Ads)</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {ads.length === 0 ? (
-                <div style={{ fontSize: '11px', color: '#555', textAlign: 'center', padding: '20px' }}>No hay anuncios activos</div>
-              ) : ads.map(ad => (
+              {ads.length === 0 ? <div style={{ fontSize: '11px', color: '#555', textAlign: 'center', padding: '20px' }}>No hay anuncios activos</div> : ads.map(ad => (
                 <div key={ad.id} style={{ background: '#222', borderRadius: '8px', padding: '10px', border: '1px solid #333' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <img src={ad.image_url} style={{ width: '35px', height: '35px', borderRadius: '4px', objectFit: 'cover' }} />
@@ -312,25 +309,17 @@ export default function AdminView({
                   </div>
                 </div>
               ))}
-              <button 
-                onClick={() => setShowAdModal(true)}
-                style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px dashed #1DB954', color: '#1DB954', borderRadius: '8px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}
-              >
-                + AGREGAR ANUNCIO
-              </button>
+              <button onClick={() => setShowAdModal(true)} style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px dashed #1DB954', color: '#1DB954', borderRadius: '8px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>+ AGREGAR ANUNCIO</button>
             </div>
           </div>
 
-          {/* SECCIÓN MENSAJES (Insertada debajo de publicidad) */}
           <div style={{ ...panelStyle, border: '1px solid #333' }}>
             <h2 style={{ ...headerStyle, color: '#1DB954', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><IconMessage /> MENSAJES</span>
               <span style={{ background: '#1DB954', color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '10px' }}>{screenMessages.length}</span>
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '350px', overflowY: 'auto' }}>
-              {screenMessages.length === 0 ? (
-                <div style={{ fontSize: '11px', color: '#555', textAlign: 'center', padding: '20px' }}>Sin mensajes nuevos</div>
-              ) : screenMessages.map(msg => (
+              {screenMessages.length === 0 ? <div style={{ fontSize: '11px', color: '#555', textAlign: 'center', padding: '20px' }}>Sin mensajes nuevos</div> : screenMessages.map(msg => (
                 <div key={msg.id} style={{ background: '#222', borderRadius: '10px', padding: '12px', border: '1px solid #333', borderLeft: '3px solid #1DB954' }}>
                   <div style={{ fontSize: '13px', marginBottom: '8px', fontStyle: 'italic', color: '#eee' }}>"{msg.text}"</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -346,20 +335,42 @@ export default function AdminView({
           </div>
         </div>
 
-        {/* COLUMNA 2: BUSCADOR Y COLA REPRODUCCIÓN */}
+        {/* COLUMNA 2: BUSCADOR MAESTRO */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ ...panelStyle, border: '1px solid #1DB954' }}>
+          <div style={{ ...panelStyle, border: '1px solid #1DB954', position: 'relative' }}>
             <h2 style={{ ...headerStyle, color: '#1DB954' }}>Buscador Maestro</h2>
             <div style={{ display: 'flex', background: '#282828', padding: '10px 18px', borderRadius: '30px', alignItems: 'center', gap: '12px' }}>
               <IconSearch />
               <input 
-                value={query} onChange={(e) => setQuery(e.target.value)} 
+                value={query} 
+                onChange={(e) => setQuery(e.target.value)} 
+                onKeyDown={(e) => e.key === 'Enter' && performSearch(query)}
                 placeholder="Escribe el nombre de la canción..." 
                 style={{ flex: 1, background: 'none', border: 'none', color: '#fff', outline: 'none', fontSize: '14px' }} 
               />
-              {query && <button onClick={() => { setQuery(""); setResults([]); }} style={{ background: "none", border: "none", color: '#b3b3b3', cursor: "pointer", fontSize: 16 }}>✕</button>}
+              {query && <button onClick={() => { setQuery(""); setResults([]); setSuggestions([]); }} style={{ background: "none", border: "none", color: '#b3b3b3', cursor: "pointer", fontSize: 16 }}>✕</button>}
               {searching && <div className="spinner" />}
             </div>
+            
+            {query.trim().length > 0 && query.trim().length < 3 && (
+              <div style={{ fontSize: '10px', color: '#1DB954', marginTop: '8px', marginLeft: '12px', fontWeight: '600', opacity: 0.8 }}>Escribe al menos 3 letras para buscar...</div>
+            )}
+
+            {suggestions.length > 0 && (
+              <div style={{ position: 'absolute', top: '90px', left: '20px', right: '20px', background: '#282828', borderRadius: '8px', zIndex: 100, boxShadow: '0 10px 25px rgba(0,0,0,0.5)', overflow: 'hidden', border: '1px solid #333' }}>
+                {suggestions.map((s, idx) => (
+                  <div key={idx} 
+                    onClick={() => { setQuery(s); performSearch(s); }}
+                    style={{ padding: '10px 15px', fontSize: '13px', cursor: 'pointer', borderBottom: '1px solid #333', transition: '0.2s' }}
+                    onMouseEnter={(e) => e.target.style.background = '#333'}
+                    onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                  >
+                    {s}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: results.length ? '15px' : '0' }}>
               {results.map((track) => (
                 <div key={track.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', background: '#282828', borderRadius: '8px' }}>
@@ -378,12 +389,7 @@ export default function AdminView({
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
               <h2 style={headerStyle}>Cola de Reproducción ({approvedQueue.length})</h2>
               {queue.length > 0 && (
-                <button 
-                  onClick={() => window.confirm("¿Vaciar todas las canciones?") && onClearQueue()} 
-                  style={{ background: 'transparent', border: '1px solid #ff4444', color: '#ff4444', padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: '700', cursor: 'pointer' }}
-                >
-                  VACIAR LISTA
-                </button>
+                <button onClick={() => window.confirm("¿Vaciar todas las canciones?") && onClearQueue()} style={{ background: 'transparent', border: '1px solid #ff4444', color: '#ff4444', padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: '700', cursor: 'pointer' }}>VACIAR LISTA</button>
               )}
             </div>
             {approvedQueue.map((song, idx) => (
@@ -394,7 +400,6 @@ export default function AdminView({
                   <div style={{ fontWeight: '600', fontSize: '13px', color: idx === currentIdx ? '#1DB954' : '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</div>
                   <div style={{ color: '#b3b3b3', fontSize: '11px' }}>{song.artist}</div>
                 </div>
-                
                 <div style={{ display: 'flex', gap: '6px' }}>
                     <button onClick={() => onPlay(idx)} style={{ ...actionBtn, background: '#282828', color: '#1DB954', width: 28, height: 28 }}><IconPlaySmall /></button>
                     <button onClick={() => onRemove(queue.indexOf(song))} style={{ ...actionBtn, background: 'transparent', color: '#ff4444', width: 28, height: 28 }}><IconTrash /></button>
@@ -404,7 +409,6 @@ export default function AdminView({
           </div>
         </div>
 
-        {/* COLUMNA 3: PREVIEW Y PENDIENTES */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ ...panelStyle, padding: 0, overflow: 'hidden' }}>
             <div style={{ background: '#000', aspectRatio: '16/9', position: 'relative' }}>
@@ -420,9 +424,7 @@ export default function AdminView({
             </div>
             <div style={{ padding: '15px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <div onClick={toggleMute} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', color: localVol === 0 ? '#ff4444' : '#b3b3b3' }}>
-                        <IconVolume /> {localVol === 0 ? 'MUTE' : 'VOL'}
-                    </div>
+                    <div onClick={toggleMute} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', color: localVol === 0 ? '#ff4444' : '#b3b3b3' }}><IconVolume /> {localVol === 0 ? 'MUTE' : 'VOL'}</div>
                     <span style={{ color: '#1DB954', fontWeight: 'bold', fontSize: '11px' }}>{localVol}%</span>
                 </div>
                 <input type="range" min="0" max="100" value={localVol} onChange={handleVolChange} style={{ width: '100%', accentColor: '#1DB954' }} />
@@ -443,7 +445,6 @@ export default function AdminView({
         </div>
       </div>
 
-      {/* MODAL AD */}
       {showAdModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(8px)' }}>
           <div style={{ ...panelStyle, width: '100%', maxWidth: '400px', boxSizing: 'border-box', border: '1px solid #1DB954', padding: '25px' }}>
@@ -451,18 +452,15 @@ export default function AdminView({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <div>
                 <label style={{ fontSize: '11px', color: '#888' }}>Nombre de la Marca</label>
-                <input type="text" placeholder="Ej: Heineken" style={{ width: '100%', boxSizing: 'border-box', background: '#282828', border: 'none', padding: '12px', borderRadius: '8px', color: '#fff', marginTop: '5px' }}
-                  onChange={(e) => setNewAd({...newAd, title: e.target.value})} />
+                <input type="text" placeholder="Ej: Heineken" style={{ width: '100%', boxSizing: 'border-box', background: '#282828', border: 'none', padding: '12px', borderRadius: '8px', color: '#fff', marginTop: '5px' }} onChange={(e) => setNewAd({...newAd, title: e.target.value})} />
               </div>
               <div>
                 <label style={{ fontSize: '11px', color: '#888' }}>URL de Imagen</label>
-                <input type="text" placeholder="https://..." style={{ width: '100%', boxSizing: 'border-box', background: '#282828', border: 'none', padding: '12px', borderRadius: '8px', color: '#fff', marginTop: '5px' }}
-                  onChange={(e) => setNewAd({...newAd, image_url: e.target.value})} />
+                <input type="text" placeholder="https://..." style={{ width: '100%', boxSizing: 'border-box', background: '#282828', border: 'none', padding: '12px', borderRadius: '8px', color: '#fff', marginTop: '5px' }} onChange={(e) => setNewAd({...newAd, image_url: e.target.value})} />
               </div>
               <div>
                 <label style={{ fontSize: '11px', color: '#888' }}>Frecuencia de Reproducción</label>
-                <select style={{ width: '100%', boxSizing: 'border-box', background: '#282828', border: 'none', padding: '12px', borderRadius: '8px', color: '#fff', marginTop: '5px' }}
-                  onChange={(e) => setNewAd({...newAd, frequency: parseInt(e.target.value)})}>
+                <select style={{ width: '100%', boxSizing: 'border-box', background: '#282828', border: 'none', padding: '12px', borderRadius: '8px', color: '#fff', marginTop: '5px' }} onChange={(e) => setNewAd({...newAd, frequency: parseInt(e.target.value)})}>
                   <option value="2">Cada 2 canciones</option>
                   <option value="3">Cada 3 canciones</option>
                   <option value="5">Cada 5 canciones</option>

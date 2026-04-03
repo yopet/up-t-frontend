@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { supabase } from "./lib/supabase"; // Importante: Asegúrate de tener la ruta correcta a tu cliente
+import { supabase } from "./lib/supabase";
 
 // ─── CONFIG ─────────────────────────────────────────────────────────────────
 const API_KEYS = [
@@ -12,7 +12,7 @@ const API_KEYS = [
 
 const EXHAUSTED_KEY = "yt_exhausted_keys";
 const EXHAUSTED_UNTIL_KEY = "yt_exhausted_until";
-const COOLDOWN_MINUTES = 2; // Tiempo de espera entre canciones
+const COOLDOWN_MINUTES = 2;
 
 function getAvailableKey() {
   const until = parseInt(localStorage.getItem(EXHAUSTED_UNTIL_KEY) || "0");
@@ -42,6 +42,29 @@ function isQuotaError(data) {
       data?.error?.errors?.[0]?.reason === "dailyLimitExceeded")
   );
 }
+
+// MEJORADO: Sugerencias con tiempo de espera para evitar que la lista se pegue
+const getSuggestions = async (term) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 segundos máximo
+
+  try {
+    const res = await fetch(
+      `https://api.allorigins.win/get?url=${encodeURIComponent(
+        `https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q=${term}`
+      )}`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timeoutId);
+    const data = await res.json();
+    if (!data.contents) return [];
+    const parsedData = JSON.parse(data.contents);
+    return parsedData[1] || [];
+  } catch (e) {
+    return [];
+  }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const MOCK_NOW = {
@@ -98,7 +121,7 @@ function Toast({ msg, onDone }) {
     </div>
   );
 }
-// Utilidad para convertir "04:15" o "1:20:05" a segundos totales
+
 const parseDurationString = (value) => {
   if (!value) return 0;
   const parts = String(value).split(":").map(Number);
@@ -109,6 +132,7 @@ const parseDurationString = (value) => {
 
 export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0 }) {
   const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState([]); 
   const [results, setResults] = useState([]);
   const [toast, setToast] = useState("");
   const [searching, setSearching] = useState(false);
@@ -117,7 +141,6 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
   const [keysInfo, setKeysInfo] = useState("");
   const inputRef = useRef(null);
 
-  // --- NUEVOS ESTADOS PARA MENSAJE ---
   const [showMsgModal, setShowMsgModal] = useState(false);
   const [msgText, setMsgText] = useState("");
   const [msgAuthor, setMsgAuthor] = useState("");
@@ -130,121 +153,128 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
     setAdded(new Set(queue.map((song) => song.id)));
   }, [queue]);
 
-  useEffect(() => {
-    const trimmedQuery = query.trim();
-    if (!trimmedQuery || trimmedQuery.length < 3) { 
-      setResults([]); 
-      setError(""); 
-      setKeysInfo(""); 
-      setSearching(false);
-      return; 
-    }
+ // Sustituye el useEffect de sugerencias (línea 143 aprox.) por este:
+useEffect(() => {
+  const q = query.trim();
+  if (q.length < 3) { setSuggestions([]); return; }
 
+  const timeout = setTimeout(() => {
+    // Definimos el nombre de la función global que recibirá la respuesta
+    const callbackName = 'googleSuggestCallback_' + Math.random().toString(36).substr(2, 9);
+    
+    window[callbackName] = (data) => {
+      if (data && data[1]) {
+        setSuggestions(data[1].map(item => item[0]));
+      }
+      // Limpieza: eliminamos el script y la función global después de usarla
+      delete window[callbackName];
+      const script = document.getElementById(callbackName);
+      if (script) script.remove();
+    };
+
+    const script = document.createElement('script');
+    script.id = callbackName;
+    // Usamos el parámetro callback para JSONP, esto ignora los CORS
+    script.src = `https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&q=${encodeURIComponent(q)}&callback=${callbackName}`;
+    document.body.appendChild(script);
+  }, 300);
+
+  return () => clearTimeout(timeout);
+}, [query]);
+
+  const performSearch = async (term) => {
+    if (!term.trim()) return;
+    setQuery(term);
+    setSuggestions([]);
     setSearching(true);
     setError("");
     const ctrl = new AbortController();
 
-    const timeout = setTimeout(async () => {
-      const searchWithKey = async (key) => {
-        const res = await fetch(
-          `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=5&q=${encodeURIComponent(trimmedQuery)}&key=${key}`,
-          { signal: ctrl.signal }
-        );
-        return res.json();
-      };
+    const searchWithKey = async (key) => {
+      const res = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=5&q=${encodeURIComponent(term)}&key=${key}`,
+        { signal: ctrl.signal }
+      );
+      return res.json();
+    };
 
-      try {
-        let currentKey = getAvailableKey();
+    try {
+      let currentKey = getAvailableKey();
+      if (!currentKey) {
+        setError("Cuota agotada. Intenta mañana.");
+        setSearching(false);
+        return;
+      }
+
+      let searchData = await searchWithKey(currentKey);
+
+      while (isQuotaError(searchData)) {
+        markKeyExhausted(currentKey);
+        currentKey = getAvailableKey();
         if (!currentKey) {
-          setError("Cuota agotada. Intenta mañana.");
+          setError("Cuota agotada.");
           setSearching(false);
           return;
         }
-
-        let searchData = await searchWithKey(currentKey);
-
-        while (isQuotaError(searchData)) {
-          markKeyExhausted(currentKey);
-          currentKey = getAvailableKey();
-          if (!currentKey) {
-            setError("Cuota agotada.");
-            setSearching(false);
-            return;
-          }
-          searchData = await searchWithKey(currentKey);
-        }
-
-        const items = searchData.items || [];
-        if (!items.length) { setResults([]); setSearching(false); return; }
-
-        const videoIds = items.map((i) => i.id.videoId).join(",");
-        const detailRes = await fetch(
-          `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds}&key=${currentKey}`,
-          { signal: ctrl.signal }
-        );
-        const detailData = await detailRes.json();
-        const durationMap = {};
-        (detailData.items || []).forEach((v) => {
-          durationMap[v.id] = formatDuration(v.contentDetails.duration);
-        });
-
-        setResults(items.map((item) => ({
-          id: item.id.videoId,
-          title: item.snippet.title,
-          artist: item.snippet.channelTitle.replace(/ - Topic$| Music$/i, ""),
-          img: item.snippet.thumbnails.medium?.url,
-          duration: durationMap[item.id.videoId] || "",
-          videoId: item.id.videoId,
-        })));
-
-      } catch (e) {
-        if (e.name !== "AbortError") setError("Error de conexión");
-      } finally {
-        setSearching(false);
+        searchData = await searchWithKey(currentKey);
       }
-    }, 600);
 
-    return () => { clearTimeout(timeout); ctrl.abort(); };
-  }, [query]);
+      const items = searchData.items || [];
+      if (!items.length) { setResults([]); setSearching(false); return; }
 
-// ... dentro de export default function CustomerView ...
+      const videoIds = items.map((i) => i.id.videoId).join(",");
+      const detailRes = await fetch(
+        `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds}&key=${currentKey}`,
+        { signal: ctrl.signal }
+      );
+      const detailData = await detailRes.json();
+      const durationMap = {};
+      (detailData.items || []).forEach((v) => {
+        durationMap[v.id] = formatDuration(v.contentDetails.duration);
+      });
 
-const addToQueue = (track) => {
-  // 1. Evitar duplicados visuales en la sesión actual
-  if (added.has(track.id)) return;
+      setResults(items.map((item) => ({
+        id: item.id.videoId,
+        title: item.snippet.title,
+        artist: item.snippet.channelTitle.replace(/ - Topic$| Music$/i, ""),
+        img: item.snippet.thumbnails.medium?.url,
+        duration: durationMap[item.id.videoId] || "",
+        videoId: item.id.videoId,
+      })));
+    } catch (e) {
+      if (e.name !== "AbortError") setError("Error de conexión");
+    } finally {
+      setSearching(false);
+    }
+  };
 
-  // --- NUEVA VALIDACIÓN: COOLDOWN (Punto 1) ---
-  const lastRequest = localStorage.getItem("last_song_request");
-  const now = Date.now();
-  const cooldownMs = COOLDOWN_MINUTES * 60 * 1000;
+  const addToQueue = (track) => {
+    if (added.has(track.id)) return;
+    const lastRequest = localStorage.getItem("last_song_request");
+    const now = Date.now();
+    const cooldownMs = COOLDOWN_MINUTES * 60 * 1000;
 
-  if (lastRequest && (now - parseInt(lastRequest)) < cooldownMs) {
-    const remainingMs = cooldownMs - (now - parseInt(lastRequest));
-    const remainingMin = Math.ceil(remainingMs / 60000);
-    setToast(`⏳ Espera ${remainingMin} min para pedir otra`);
-    return;
-  }
+    if (lastRequest && (now - parseInt(lastRequest)) < cooldownMs) {
+      const remainingMs = cooldownMs - (now - parseInt(lastRequest));
+      const remainingMin = Math.ceil(remainingMs / 60000);
+      setToast(`⏳ Espera ${remainingMin} min para pedir otra`);
+      return;
+    }
 
-  // --- VALIDACIÓN DE DURACIÓN (Punto 3) ---
-  const seconds = parseDurationString(track.duration);
-  const MAX_SECONDS = 480; // 8 minutos
+    const seconds = parseDurationString(track.duration);
+    const MAX_SECONDS = 480;
 
-  if (seconds > MAX_SECONDS) {
-    setToast("⚠️ Canción demasiado larga (máx. 8 min)");
-    return;
-  }
+    if (seconds > MAX_SECONDS) {
+      setToast("⚠️ Canción demasiado larga (máx. 8 min)");
+      return;
+    }
 
-  // --- SI PASA TODAS LAS PRUEBAS ---
-  if (onSongRequest) onSongRequest(track);
-  
-  // Guardar el momento de la petición para el cooldown
-  localStorage.setItem("last_song_request", now.toString());
-  
-  setAdded((s) => new Set([...s, track.id]));
-  setToast(`"${track.title}" agregada a la cola`);
-};
+    if (onSongRequest) onSongRequest(track);
+    localStorage.setItem("last_song_request", now.toString());
+    setAdded((s) => new Set([...s, track.id]));
+    setToast(`"${track.title}" agregada a la cola`);
+  };
 
-  // --- FUNCIÓN PARA ENVIAR MENSAJE ---
   const handleSendMsg = async () => {
     if (!msgText.trim()) return;
     setSendingMsg(true);
@@ -254,16 +284,13 @@ const addToQueue = (track) => {
         .insert([{ 
           text: msgText, 
           author: msgAuthor || "Invitado",
-          status: 'pending' // El admin lo aprueba
+          status: 'pending' 
         }]);
-      
       if (error) throw error;
-      
       setToast("Mensaje enviado a moderación ✨");
       setMsgText("");
       setShowMsgModal(false);
     } catch (e) {
-      console.error(e);
       setToast("Error al enviar mensaje");
     } finally {
       setSendingMsg(false);
@@ -281,11 +308,10 @@ const addToQueue = (track) => {
     <div style={{
       background: bg, minHeight: "100vh", color: "#fff",
       fontFamily: "system-ui, -apple-system, sans-serif",
-      maxWidth: 480, margin: "0 auto", paddingBottom: 100, // Espacio para el botón flotante
+      maxWidth: 480, margin: "0 auto", paddingBottom: 100,
     }}>
       {toast && <Toast msg={toast} onDone={() => setToast("")} />}
 
-      {/* HEADER Y BUSCADOR */}
       <div style={{
         padding: "20px 18px 12px", position: "sticky", top: 0,
         background: bg, zIndex: 10, borderBottom: `1px solid ${border}`,
@@ -296,6 +322,7 @@ const addToQueue = (track) => {
         </div>
         <div style={{ fontSize: 20, fontWeight: 700, color: "#fff", marginBottom: 14 }}>Pide tu canción</div>
 
+        {/* INPUT DE BÚSQUEDA CON BOTÓN X */}
         <div style={{
           background: surface2, borderRadius: 12, display: "flex",
           alignItems: "center", gap: 10, padding: "10px 14px", border: `1px solid ${border}`,
@@ -307,119 +334,72 @@ const addToQueue = (track) => {
           <input
             ref={inputRef}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Artista, canción o álbum..."
+            onChange={(e) => {
+              setQuery(e.target.value);
+              if(results.length > 0) setResults([]);
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && performSearch(query)}
+            placeholder="Artista o canción..."
             style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: 15, fontFamily: "inherit" }}
           />
+          {query.length > 0 && (
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setQuery("");
+                setResults([]);
+                setSuggestions([]);
+              }}
+              style={{ background: "none", border: "none", color: muted, cursor: "pointer", display: "flex", alignItems: "center" }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* BOTÓN FLOTANTE PARA MENSAJES */}
-      <button 
-        onClick={() => setShowMsgModal(true)}
-        style={{
-          position: "fixed", bottom: 20, right: 20, width: 56, height: 56,
-          borderRadius: "50%", background: "#1db954", color: "#000",
-          border: "none", boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer", zIndex: 100, transition: "transform 0.2s"
-        }}
-        onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.9)"}
-        onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
-      >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-      </button>
-
-      {/* MODAL DE MENSAJE */}
-      {showMsgModal && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
-          background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex",
-          alignItems: "center", justifyContent: "center", padding: 20, backdropFilter: "blur(4px)"
-        }}>
-          <div style={{
-            background: surface, width: "100%", maxWidth: 400, boxSizing: "border-box",
-            borderRadius: 20, padding: 24, border: `1px solid ${border}`,
-            animation: "modalIn 0.3s ease"
-          }}>
-            <h3 style={{ marginTop: 0, fontSize: 18, color: "#1db954" }}>Enviar saludo a la pantalla</h3>
-            
-            <input 
-              placeholder="Tu nombre (opcional)"
-              value={msgAuthor}
-              onChange={(e) => setMsgAuthor(e.target.value)}
-              style={{
-                width: "100%", boxSizing: "border-box", background: bg, border: `1px solid ${border}`,
-                padding: "12px", borderRadius: 8, color: "#fff", marginBottom: 12, outline: "none"
-              }}
-            />
-            
-            <textarea 
-              placeholder="¿Qué quieres decir?"
-              value={msgText}
-              onChange={(e) => setMsgText(e.target.value)}
-              maxLength={100}
-              rows={3}
-              style={{
-                width: "100%", boxSizing: "border-box", background: bg, border: `1px solid ${border}`,
-                padding: "12px", borderRadius: 8, color: "#fff", marginBottom: 8,
-                outline: "none", resize: "none", fontFamily: "inherit"
-              }}
-            />
-            <div style={{ fontSize: 11, color: muted, textAlign: "right", marginBottom: 20 }}>
-              {msgText.length}/100 caracteres
+      {/* Sugerencias o aviso de longitud */}
+      {!searching && results.length === 0 && (
+        <div style={{ margin: "0 18px" }}>
+          {query.trim().length > 0 && query.trim().length < 3 ? (
+            <div style={{ padding: "14px", color: muted, fontSize: 12, textAlign: "center" }}>
+              Escribe al menos 3 letras...
             </div>
-
-            <div style={{ display: "flex", gap: 12 }}>
-              <button 
-                onClick={() => setShowMsgModal(false)}
-                style={{ flex: 1, background: "transparent", color: "#fff", border: `1px solid ${border}`, padding: "12px", borderRadius: 30, cursor: "pointer" }}
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={handleSendMsg}
-                disabled={!msgText.trim() || sendingMsg}
-                style={{ 
-                  flex: 1, 
-                  background: !msgText.trim() || sendingMsg ? muted : "#1db954", 
-                  color: "#000", border: "none", padding: "12px", 
-                  borderRadius: 30, cursor: "pointer", fontWeight: "bold" 
-                }}
-              >
-                {sendingMsg ? "Enviando..." : "Enviar"}
-              </button>
-            </div>
-          </div>
-          <style>{`@keyframes modalIn{from{opacity:0;transform:scale(0.9)}to{opacity:1;transform:scale(1)}}`}</style>
+          ) : (
+            suggestions.length > 0 && (
+              <div style={{ background: surface, borderRadius: 12, border: `1px solid ${border}`, overflow: "hidden" }}>
+                {suggestions.map((tip, i) => (
+                  <div 
+                    key={i} 
+                    onClick={() => performSearch(tip)}
+                    style={{ padding: "14px", borderBottom: i < suggestions.length -1 ? `1px solid ${border}` : "none", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}
+                  >
+                    <span style={{ color: muted }}>🔍</span> {tip}
+                  </div>
+                ))}
+              </div>
+            )
+          )}
         </div>
       )}
 
       {/* SONANDO AHORA */}
       <div style={{ margin: "14px 14px 0" }}>
-        <div style={{
-          background: surface, borderRadius: 14, padding: "12px 14px",
-          display: "flex", alignItems: "center", gap: 12,
-          border: "1px solid rgba(29,185,84,0.2)",
-        }}>
+        <div style={{ background: surface, borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, border: "1px solid rgba(29,185,84,0.2)" }}>
           <img src={currentTrack?.img || MOCK_NOW.img} style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 10, color: "#1db954", fontWeight: 700, letterSpacing: "0.1em", marginBottom: 2 }}>SONANDO AHORA</div>
-            <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {currentTrack?.title || MOCK_NOW.title}
-            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{currentTrack?.title || MOCK_NOW.title}</div>
             <div style={{ fontSize: 12, color: muted }}>{currentTrack?.artist || MOCK_NOW.artist}</div>
           </div>
           <EqBars />
         </div>
       </div>
 
-      {/* RESULTADOS Y COLA (Igual que antes) */}
-      {(query.trim().length >= 3 || searching) && !error && (
+      {/* RESULTADOS DE BÚSQUEDA */}
+      {!error && results.length > 0 && (
         <div style={{ margin: "18px 14px 0" }}>
-          <div style={{ fontSize: 10, color: muted2, letterSpacing: "0.12em", fontWeight: 600, marginBottom: 10 }}>
-            {searching ? "BUSCANDO EN YOUTUBE..." : `${results.length} RESULTADOS`}
-          </div>
+          <div style={{ fontSize: 10, color: muted2, letterSpacing: "0.12em", fontWeight: 600, marginBottom: 10 }}>RESULTADOS</div>
           {results.map((track) => (
             <div key={track.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 10px", background: surface, borderRadius: 12, marginBottom: 4, border: `1px solid ${border}` }}>
               <img src={track.img} style={{ width: 46, height: 46, borderRadius: 8, objectFit: "cover" }} />
@@ -427,21 +407,15 @@ const addToQueue = (track) => {
                 <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
                 <div style={{ fontSize: 11, color: muted }}>{track.artist} · {track.duration}</div>
               </div>
-              <button onClick={() => addToQueue(track)} style={{
-                width: 34, height: 34, borderRadius: "50%", border: "none",
-                background: added.has(track.id) ? "rgba(29,185,84,0.15)" : "#1db954",
-                display: "flex", alignItems: "center", justifyContent: "center"
-              }}>
-                {added.has(track.id) 
-                  ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1db954" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  : <svg width="12" height="12" viewBox="0 0 10 10" fill="#000"><polygon points="3,1 9,5 3,9"/></svg>
-                }
+              <button onClick={() => addToQueue(track)} style={{ width: 34, height: 34, borderRadius: "50%", border: "none", background: added.has(track.id) ? "rgba(29,185,84,0.15)" : "#1db954", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {added.has(track.id) ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1db954" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg> : <svg width="12" height="12" viewBox="0 0 10 10" fill="#000"><polygon points="3,1 9,5 3,9"/></svg>}
               </button>
             </div>
           ))}
         </div>
       )}
 
+      {/* COLA DE REPRODUCCIÓN */}
       {queue.length > 0 && (
         <div style={{ margin: "22px 14px 0" }}>
           <div style={{ fontSize: 10, color: muted2, fontWeight: 600, marginBottom: 10 }}>EN COLA ({queue.length})</div>
@@ -457,7 +431,23 @@ const addToQueue = (track) => {
           ))}
         </div>
       )}
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+
+      <button onClick={() => setShowMsgModal(true)} style={{ position: "fixed", bottom: 20, right: 20, width: 56, height: 56, borderRadius: "50%", background: "#1db954", color: "#000", border: "none", boxShadow: "0 8px 24px rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 100 }}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></button>
+
+      {showMsgModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, backdropFilter: "blur(4px)" }}>
+          <div style={{ background: surface, width: "100%", maxWidth: 400, borderRadius: 20, padding: 24, border: `1px solid ${border}`, animation: "modalIn 0.3s ease" }}>
+            <h3 style={{ marginTop: 0, fontSize: 18, color: "#1db954" }}>Enviar saludo</h3>
+            <input placeholder="Tu nombre" value={msgAuthor} onChange={(e) => setMsgAuthor(e.target.value)} style={{ width: "100%", boxSizing: "border-box", background: bg, border: `1px solid ${border}`, padding: "12px", borderRadius: 8, color: "#fff", marginBottom: 12 }} />
+            <textarea placeholder="Mensaje" value={msgText} onChange={(e) => setMsgText(e.target.value)} maxLength={100} rows={3} style={{ width: "100%", boxSizing: "border-box", background: bg, border: `1px solid ${border}`, padding: "12px", borderRadius: 8, color: "#fff", resize: "none" }} />
+            <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+              <button onClick={() => setShowMsgModal(false)} style={{ flex: 1, background: "transparent", color: "#fff", border: `1px solid ${border}`, padding: "12px", borderRadius: 30 }}>Cancelar</button>
+              <button onClick={handleSendMsg} disabled={!msgText.trim() || sendingMsg} style={{ flex: 1, background: "#1db954", color: "#000", border: "none", padding: "12px", borderRadius: 30, fontWeight: "bold" }}>{sendingMsg ? "..." : "Enviar"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes modalIn{from{opacity:0;transform:scale(0.9)}to{opacity:1;transform:scale(1)}}`}</style>
     </div>
   );
 }

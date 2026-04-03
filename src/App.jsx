@@ -175,7 +175,7 @@ export default function App() {
     const loadData = async () => {
       const appStatePromise = supabase
         .from("app_state")
-        .select("volume,current_idx,is_playing,current_message,message_author,auto_play")
+        .select("volume,current_idx,is_playing,auto_play")
         .eq("id", "main-config")
         .maybeSingle();
 
