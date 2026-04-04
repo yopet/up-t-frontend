@@ -780,6 +780,9 @@ export default function AdminView({
                     </div>
                     <div style={{ fontSize: 10, color: C.muted }}>{song.artist}</div>
                   </div>
+                  <div style={{ fontSize: 10, color: C.muted, fontFamily: 'monospace', marginRight: 4 }}>
+                    {song.duration}
+                  </div>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button onClick={() => onPlay(idx)} style={{ ...actionBtn, background: C.panel2, border: `0.5px solid ${C.border}`, color: C.green, width: 24, height: 24 }}>
                       <IconPlaySmall />

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { supabase } from "./lib/supabase";
 import TvView from "./TvView";
@@ -30,10 +30,9 @@ const formatDurationText = (seconds) => {
 };
 
 export default function App() {
-  // --- ESTADOS ---
   const [establishments, setEstablishments] = useState([]);
   const [selectedEstId, setSelectedEstId] = useState("");
-  const [credits, setCredits] = useState(0); 
+  const [credits, setCredits] = useState(0);
 
   const [queue, setQueue] = useState([]);
   const [ads, setAds] = useState([]);
@@ -42,6 +41,11 @@ export default function App() {
   const [currentMessage, setCurrentMessage] = useState(null);
   const [messageAuthor, setMessageAuthor] = useState(null);
   const [autoPlay, setAutoPlay] = useState(true);
+
+  // ─── CLAVE DEL FIX: trackear la canción actual por ID, no por posición ───
+  // Cuando el queue se reordena al aprobar una canción, recalculamos currentIdx
+  // buscando este rowId en el nuevo orden en lugar de mantener el número fijo.
+  const currentPlayingRowIdRef = useRef(null);
 
   // 1. CARGA INICIAL
   useEffect(() => {
@@ -76,6 +80,7 @@ export default function App() {
       is_cliente: item.is_cliente,
       img: song.img_url || "https://picsum.photos/seed/default/600/600",
       youtubeId,
+      created_at: item.requested_at,
     };
   }, []);
 
@@ -89,7 +94,27 @@ export default function App() {
       .order("is_cliente", { ascending: false })
       .order("requested_at", { ascending: true });
 
-    if (data) setQueue(data.map(normalizeQueueItem));
+    if (!data) return;
+
+    const normalized = data.map(normalizeQueueItem);
+    const approvedNormalized = normalized.filter(s => s.isApproved);
+
+    setQueue(normalized);
+
+    // ─── Re-anclar el índice a la canción que estaba sonando ────────────────
+    // Si tenemos un rowId de referencia, buscamos su nueva posición en la
+    // approvedQueue para que currentIdx apunte a la misma canción aunque
+    // se hayan insertado nuevas canciones antes o después.
+    const rowId = currentPlayingRowIdRef.current;
+    if (rowId) {
+      const newIdx = approvedNormalized.findIndex(s => s.queueRowId === rowId);
+      if (newIdx !== -1 && newIdx !== undefined) {
+        setCurrentIdx(newIdx);
+        // No llamamos updateAppState aquí para evitar loop —
+        // solo actualizamos el estado local. El estado en BD se actualiza
+        // solo cuando el operador hace una acción manual (play, skip, etc.)
+      }
+    }
   }, [selectedEstId, normalizeQueueItem]);
 
   const fetchAds = useCallback(async () => {
@@ -112,7 +137,12 @@ export default function App() {
     if (!selectedEstId) return;
 
     const loadInitialState = async () => {
-      const { data } = await supabase.from("app_state").select("*").eq("id", `config-${selectedEstId}`).maybeSingle();
+      const { data } = await supabase
+        .from("app_state")
+        .select("*")
+        .eq("id", `config-${selectedEstId}`)
+        .maybeSingle();
+
       if (data) {
         setVolume(data.volume ?? 50);
         setCurrentIdx(data.current_idx ?? 0);
@@ -123,40 +153,64 @@ export default function App() {
     };
     loadInitialState();
 
-    const stateSub = supabase.channel(`state-${selectedEstId}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "app_state", filter: `id=eq.config-${selectedEstId}` }, payload => {
+    const stateSub = supabase
+      .channel(`state-${selectedEstId}`)
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "app_state",
+        filter: `id=eq.config-${selectedEstId}`
+      }, payload => {
         const r = payload.new;
         if (r.volume !== undefined) setVolume(r.volume);
-        if (r.current_idx !== undefined) setCurrentIdx(r.current_idx);
+        if (r.current_idx !== undefined) {
+          setCurrentIdx(r.current_idx);
+          // Mantenemos el ref sincronizado con lo que dice Supabase,
+          // así fetchQueue sabe qué canción anclar cuando re-ordena.
+          setQueue(prev => {
+            const approved = prev.filter(s => s.isApproved);
+            const song = approved[r.current_idx];
+            if (song) currentPlayingRowIdRef.current = song.queueRowId;
+            return prev; // no mutamos el queue, solo actualizamos el ref
+          });
+        }
         if (r.auto_play !== undefined) setAutoPlay(r.auto_play);
-      }).subscribe();
+      })
+      .subscribe();
 
-    const queueSub = supabase.channel(`queue-${selectedEstId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "queue", filter: `establishment_id=eq.${selectedEstId}` }, () => fetchQueue()).subscribe();
+    const queueSub = supabase
+      .channel(`queue-${selectedEstId}`)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "queue",
+        filter: `establishment_id=eq.${selectedEstId}`
+      }, () => fetchQueue())
+      .subscribe();
 
-    const estSub = supabase.channel(`est-update-${selectedEstId}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "establishments", filter: `id=eq.${selectedEstId}` }, payload => {
+    const estSub = supabase
+      .channel(`est-update-${selectedEstId}`)
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "establishments",
+        filter: `id=eq.${selectedEstId}`
+      }, payload => {
         if (payload.new.credits !== undefined) setCredits(payload.new.credits);
-      }).subscribe();
+      })
+      .subscribe();
 
-    const msgSub = supabase.channel(`messages-tv-${selectedEstId}`)
-      .on("postgres_changes", { 
-        event: "*", 
-        schema: "public", 
-        table: "screen_messages", 
-        filter: `establishment_id=eq.${selectedEstId}` 
+    const msgSub = supabase
+      .channel(`messages-tv-${selectedEstId}`)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "screen_messages",
+        filter: `establishment_id=eq.${selectedEstId}`
       }, (payload) => {
         const data = payload.new;
-        if (data && data.status === 'approved') {
+        if (data && data.status === "approved") {
           setCurrentMessage(data.text);
           setMessageAuthor(data.author);
-          
           setTimeout(() => {
             setCurrentMessage(null);
             setMessageAuthor(null);
           }, 1000);
         }
-      }).subscribe();
+      })
+      .subscribe();
 
     return () => {
       supabase.removeChannel(stateSub);
@@ -174,7 +228,7 @@ export default function App() {
 
   const handleApproveWithCredits = async (rowId) => {
     if (credits <= 0) return alert("⚠️ Sin saldo Up-T.");
-    const { error } = await supabase.rpc('approve_and_subtract_credit', {
+    const { error } = await supabase.rpc("approve_and_subtract_credit", {
       p_request_id: rowId,
       p_establishment_id: selectedEstId
     });
@@ -188,7 +242,7 @@ export default function App() {
       title: song.title,
       artist: song.artist,
       img_url: song.img || song.img_url
-    }, { onConflict: 'youtube_id' }).select().single();
+    }, { onConflict: "youtube_id" }).select().single();
 
     await supabase.from("queue").insert({
       establishment_id: selectedEstId,
@@ -198,44 +252,109 @@ export default function App() {
     });
   };
 
+  // ─── Helpers para play y skip que actualizan el rowId de referencia ───────
   const approvedQueue = queue.filter(s => s.isApproved);
+
+  const handlePlay = (idx) => {
+    const song = approvedQueue[idx];
+    if (song) currentPlayingRowIdRef.current = song.queueRowId;
+    setCurrentIdx(idx);
+    updateAppState({ current_idx: idx });
+  };
+
+  const handleTrackEnd = () => {
+    const nextIdx = currentIdx + 1;
+    if (nextIdx < approvedQueue.length) {
+      const nextSong = approvedQueue[nextIdx];
+      if (nextSong) currentPlayingRowIdRef.current = nextSong.queueRowId;
+      setCurrentIdx(nextIdx);
+      updateAppState({ current_idx: nextIdx });
+    }
+  };
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/tv" element={<TvView queue={approvedQueue} currentIdx={currentIdx} onTrackEnd={() => { const n = currentIdx + 1; if (n < approvedQueue.length) { setCurrentIdx(n); updateAppState({ current_idx: n }); }}} volume={volume} currentMessage={currentMessage} messageAuthor={messageAuthor} />} />
-        <Route path="/tvVideo" element={
-          <TvViewVideo 
-            queue={approvedQueue} 
-            currentIdx={currentIdx} 
-            volume={volume} 
-            onTrackEnd={() => { const n = currentIdx + 1; if (n < approvedQueue.length) { setCurrentIdx(n); updateAppState({ current_idx: n }); }}} 
-            ads={ads} 
-            establishmentId={selectedEstId} 
-          />
-        } />
-        <Route path="/admin" element={
-          <AdminView
-            establishmentId={selectedEstId}
-            credits={credits}
-            queue={queue}
-            currentIdx={currentIdx}
-            onPlay={(idx) => { setCurrentIdx(idx); updateAppState({ current_idx: idx }); }}
-            onClearQueue={async () => { await supabase.from("queue").delete().eq("establishment_id", selectedEstId); setQueue([]); updateAppState({ current_idx: 0 }); }}
-            onRemove={(idx) => { const item = queue[idx]; if (item?.queueRowId) handleRemoveSong(item.queueRowId); }}
-            onApprove={handleApproveWithCredits}
-            autoPlay={autoPlay}
-            onToggleAutoPlay={(val) => { setAutoPlay(val); updateAppState({ auto_play: val }); }}
-            volume={volume}
-            onVolumeChange={(v) => { setVolume(v); updateAppState({ volume: v }); }}
-            ads={ads}
-            onAddAd={fetchAds}
-            onRemoveAd={fetchAds}
-            onAddSong={(s) => handleSongRequest(s, true)}
-          />
-        } />
-        <Route path="/scan" element={<CustomerView establishmentId={selectedEstId} onSongRequest={handleSongRequest} queue={queue} currentIdx={currentIdx} />} />
-        <Route path="/" element={<CustomerView establishmentId={selectedEstId} onSongRequest={handleSongRequest} queue={queue} currentIdx={currentIdx} />} />
+        <Route
+          path="/tv"
+          element={
+            <TvView
+              queue={approvedQueue}
+              currentIdx={currentIdx}
+              onTrackEnd={handleTrackEnd}
+              volume={volume}
+              currentMessage={currentMessage}
+              messageAuthor={messageAuthor}
+            />
+          }
+        />
+        <Route
+          path="/tvVideo"
+          element={
+            <TvViewVideo
+              queue={approvedQueue}
+              currentIdx={currentIdx}
+              volume={volume}
+              onTrackEnd={handleTrackEnd}
+              ads={ads}
+              establishmentId={selectedEstId}
+            />
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <AdminView
+              establishmentId={selectedEstId}
+              credits={credits}
+              queue={queue}
+              currentIdx={currentIdx}
+              onPlay={handlePlay}
+              onClearQueue={async () => {
+                await supabase.from("queue").delete().eq("establishment_id", selectedEstId);
+                setQueue([]);
+                currentPlayingRowIdRef.current = null;
+                setCurrentIdx(0);
+                updateAppState({ current_idx: 0 });
+              }}
+              onRemove={(idx) => {
+                const item = queue[idx];
+                if (item?.queueRowId) handleRemoveSong(item.queueRowId);
+              }}
+              onApprove={handleApproveWithCredits}
+              autoPlay={autoPlay}
+              onToggleAutoPlay={(val) => { setAutoPlay(val); updateAppState({ auto_play: val }); }}
+              volume={volume}
+              onVolumeChange={(v) => { setVolume(v); updateAppState({ volume: v }); }}
+              ads={ads}
+              onAddAd={fetchAds}
+              onRemoveAd={fetchAds}
+              onAddSong={(s) => handleSongRequest(s, true)}
+            />
+          }
+        />
+        <Route
+          path="/scan"
+          element={
+            <CustomerView
+              establishmentId={selectedEstId}
+              onSongRequest={handleSongRequest}
+              queue={queue}
+              currentIdx={currentIdx}
+            />
+          }
+        />
+        <Route
+          path="/"
+          element={
+            <CustomerView
+              establishmentId={selectedEstId}
+              onSongRequest={handleSongRequest}
+              queue={queue}
+              currentIdx={currentIdx}
+            />
+          }
+        />
       </Routes>
     </BrowserRouter>
   );
