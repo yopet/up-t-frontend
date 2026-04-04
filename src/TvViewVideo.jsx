@@ -9,7 +9,7 @@ const EMPTY_TRACK = {
   title: "Esperando canción",
   artist: "Pide una canción desde tu mesa",
   duration: 180,
-  color: "#ffffff",
+  color: "#1db954",
   youtubeId: "",
   qr: SCAN_URL,
 };
@@ -450,6 +450,9 @@ export default function TvViewVideo({
             borderRadius: 20,
             padding: 16,
             border: "0.5px solid rgba(255,255,255,0.09)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
           }}
         >
           <div
@@ -466,7 +469,7 @@ export default function TvViewVideo({
           </span>
         </div>
           {qrReady && (
-            <QRCode url={track.qr || SCAN_URL} size={200} key={track.id} />
+            <QRCode url={track.qr || SCAN_URL} size={160} key={track.id} />
           )}
            {pin && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
@@ -477,7 +480,7 @@ export default function TvViewVideo({
               fontSize: 32,
               fontWeight: 900,
               color: "white",
-              letterSpacing: "0.22em",
+              letterSpacing: "0.10em",
               fontFamily: "'Courier New', monospace",
               lineHeight: 1,
             }}>
