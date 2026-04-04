@@ -80,12 +80,6 @@ const IconSearch = () => (
     <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.5" y2="16.5" />
   </svg>
 );
-const IconVolume = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M11 5L6 9H2v6h4l5 4V5z" />
-    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-  </svg>
-);
 const IconTv = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
@@ -102,11 +96,6 @@ const IconAd = () => (
 const IconPlaySmall = () => (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
     <path d="M8 5v14l11-7z" />
-  </svg>
-);
-const IconMessage = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
   </svg>
 );
 
@@ -159,15 +148,17 @@ export default function AdminView({
   const [adFile, setAdFile] = useState(null);
   const [uploadingAd, setUploadingAd] = useState(false);
   const [screenMessages, setScreenMessages] = useState([]);
+  const [pendingFilter, setPendingFilter] = useState('all'); // ← NUEVO
 
   // --- LÓGICA DE CRÉDITOS UP-T ---
   const [credits, setCredits] = useState(0);
   const [lowCredit, setLowCredit] = useState(10);
   const [establishmentId, setEstablishmentId] = useState(null);
+  const [establishmentName, setEstablishmentName] = useState("");
 
   useEffect(() => { setLocalVol(volume); }, [volume]);
 
-  // Cargar créditos y establecimiento
+  // ─── Cargar créditos, establecimiento y contadores reales desde BD ────────
   useEffect(() => {
     const fetchEstDetails = async () => {
       const { data } = await supabase.from('establishments').select('*').single();
@@ -175,20 +166,37 @@ export default function AdminView({
         setCredits(data.credits);
         setLowCredit(data.low_credit_threshold);
         setEstablishmentId(data.id);
+        setEstablishmentName(data.name);
+
+        // FIX: contadores persistentes — se leen de Supabase, no de estado local
+        const { count: approvedCount } = await supabase
+          .from('screen_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('establishment_id', data.id)
+          .eq('status', 'approved');
+
+        const { count: rejectedCount } = await supabase
+          .from('screen_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('establishment_id', data.id)
+          .eq('status', 'rejected');
+
+        setApprovedMessagesCount(approvedCount || 0);
+        setRejectedMessagesCount(rejectedCount || 0);
       }
     };
     fetchEstDetails();
 
     const channel = supabase.channel('est-updates')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'establishments' }, 
-          payload => setCredits(payload.new.credits))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'establishments' },
+        payload => setCredits(payload.new.credits))
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, []);
 
-  // Mensajes en tiempo real
+  // ─── Mensajes en tiempo real ──────────────────────────────────────────────
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || !establishmentId) return;
     const fetchMessages = async () => {
       const { data } = await supabase
         .from('screen_messages').select('*')
@@ -210,7 +218,7 @@ export default function AdminView({
     return () => supabase.removeChannel(channel);
   }, [establishmentId]);
 
-  // Función de aprobación mejorada con créditos
+  // ─── Aprobar canción con crédito ──────────────────────────────────────────
   const handleApproveSong = async (song) => {
     if (credits <= 0) {
       alert("⚠️ Saldo insuficiente en Up-T. Recarga para aprobar más Creditos.");
@@ -228,6 +236,7 @@ export default function AdminView({
     }
   };
 
+  // ─── Aprobar / rechazar mensaje ───────────────────────────────────────────
   const handleMessageAction = async (id, newStatus) => {
     const msg = screenMessages.find(m => m.id === id);
     if (!msg) return;
@@ -252,9 +261,7 @@ export default function AdminView({
           .update({ status: newStatus })
           .eq('id', id);
         if (error) throw error;
-        if (newStatus === 'rejected') {
-          setRejectedMessagesCount(prev => prev + 1);
-        }
+        if (newStatus === 'rejected') setRejectedMessagesCount(prev => prev + 1);
       }
       setScreenMessages(prev => prev.filter(m => m.id !== id));
     } catch (err) {
@@ -269,6 +276,7 @@ export default function AdminView({
     onRemove(idx);
   };
 
+  // ─── Notificación nueva canción ───────────────────────────────────────────
   useEffect(() => {
     if (queue.length > prevQueueLen.current) {
       setLastNewTrack(queue[queue.length - 1]);
@@ -279,6 +287,7 @@ export default function AdminView({
     prevQueueLen.current = queue.length;
   }, [queue]);
 
+  // ─── Sugerencias de búsqueda ──────────────────────────────────────────────
   useEffect(() => {
     const q = query.trim();
     if (q.length < 3) { setSuggestions([]); return; }
@@ -297,6 +306,7 @@ export default function AdminView({
     return () => clearTimeout(timeout);
   }, [query]);
 
+  // ─── Búsqueda YouTube ─────────────────────────────────────────────────────
   const performSearch = async (searchTerm) => {
     const q = searchTerm.trim();
     if (q.length < 3) return;
@@ -332,6 +342,7 @@ export default function AdminView({
     finally { setSearching(false); }
   };
 
+  // ─── Volumen ──────────────────────────────────────────────────────────────
   const handleVolChange = (e) => {
     const val = parseInt(e.target.value);
     if (val > 0) setLastNonZeroVolume(val);
@@ -344,6 +355,7 @@ export default function AdminView({
     else { handleVolChange({ target: { value: lastNonZeroVolume } }); }
   };
 
+  // ─── Anuncios ─────────────────────────────────────────────────────────────
   const handleSaveAdInternal = async () => {
     if (!newAd.title || (!adFile && !newAd.image_url)) {
       alert("Por favor completa el título y selecciona una imagen.");
@@ -370,7 +382,7 @@ export default function AdminView({
       };
       const { data, error: insErr } = await supabase.from('ads').insert([adToSave]).select();
       if (insErr) throw insErr;
-      if (onAddAd) await onAddAd(data[0]); 
+      if (onAddAd) await onAddAd(data[0]);
       setShowAdModal(false);
       setNewAd({ title: '', image_url: '', frequency: 3 });
       setAdFile(null);
@@ -383,14 +395,10 @@ export default function AdminView({
     }
   };
 
-  // NUEVA FUNCIÓN DE ELIMINACIÓN INTERNA
   const handleRemoveAdInternal = async (adId) => {
     if (!window.confirm("¿Estás seguro de eliminar este anuncio?")) return;
     try {
-      const { error } = await supabase
-        .from('ads')
-        .delete()
-        .eq('id', adId);
+      const { error } = await supabase.from('ads').delete().eq('id', adId);
       if (error) throw error;
       if (onRemoveAd) onRemoveAd(adId);
       alert("Anuncio eliminado");
@@ -400,10 +408,25 @@ export default function AdminView({
     }
   };
 
+  // ─── Datos derivados ──────────────────────────────────────────────────────
   const approvedQueue = queue.filter(s => s.isApproved);
-  const pendingRequests = queue.filter(s => !s.isApproved).sort((a, b) => {
-    if (a.is_cliente === b.is_cliente) return new Date(a.created_at) - new Date(b.created_at);
-    return a.is_cliente ? -1 : 1;
+
+  const pendingRequests = queue
+    .filter(s => !s.isApproved)
+    .sort((a, b) => {
+      if (a.is_cliente === b.is_cliente) return new Date(a.created_at) - new Date(b.created_at);
+      return a.is_cliente ? -1 : 1;
+    });
+
+  // Array mixto: canciones pendientes + mensajes pendientes, ordenados por prioridad y fecha
+  const allPending = [
+    ...pendingRequests.map(s => ({ ...s, itemType: 'song' })),
+    ...screenMessages.map(m => ({ ...m, itemType: 'msg' })),
+  ].sort((a, b) => {
+    const aTop = a.is_cliente || a.itemType === 'msg';
+    const bTop = b.is_cliente || b.itemType === 'msg';
+    if (aTop !== bTop) return aTop ? -1 : 1;
+    return new Date(a.created_at) - new Date(b.created_at);
   });
 
   const clientStats = {
@@ -419,15 +442,24 @@ export default function AdminView({
     rejected: rejectedMessagesCount,
   };
 
+  // ─── Estilos base ─────────────────────────────────────────────────────────
   const C = {
     bg: '#0f0f0f', panel: '#161616', panel2: '#1c1c1c', border: '#222', border2: '#2a2a2a',
     text: '#d8d8d8', muted: '#555', green: '#1DB954', amber: '#EF9F27', red: '#E24B4A', blue: '#85B7EB',
   };
+  const panel = {
+    background: C.panel, borderRadius: 10, border: `0.5px solid ${C.border}`, padding: '16px',
+  };
+  const sectionLabel = {
+    fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em',
+    fontWeight: 500, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6,
+  };
+  const actionBtn = {
+    border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex',
+    alignItems: 'center', justifyContent: 'center', transition: '0.15s', flexShrink: 0,
+  };
 
-  const panel = { background: C.panel, borderRadius: 10, border: `0.5px solid ${C.border}`, padding: '16px' };
-  const sectionLabel = { fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 };
-  const actionBtn = { border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.15s', flexShrink: 0 };
-
+  // ─── Stats strip ──────────────────────────────────────────────────────────
   const StatsStrip = () => {
     const colStyle = () => ({ display: 'flex', flexDirection: 'column', borderRight: `0.5px solid ${C.border}` });
     const titleCell = (label, color) => (
@@ -461,43 +493,68 @@ export default function AdminView({
     );
   };
 
+  // ─── RENDER ───────────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', overflowY: 'auto', overflowX: 'hidden', background: C.bg, color: C.text, fontFamily: 'system-ui, sans-serif', boxSizing: 'border-box' }}>
       {lastNewTrack && <NewBadge track={lastNewTrack} onDone={() => setLastNewTrack(null)} />}
-      
+
+      {/* ── HEADER ──────────────────────────────────────────────────────────── */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px', borderBottom: `0.5px solid ${C.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 7, height: 7, background: C.green, borderRadius: '50%' }} />
-          <span style={{ fontSize: 15, fontWeight: 500 }}>Up-T <span style={{ color: C.green }}>Admin</span></span>
+          <span style={{ fontSize: 15, fontWeight: 500 }}>
+            Up-T <span style={{ color: C.green }}>Admin</span>
+            {establishmentName && <span style={{  marginLeft: 5, fontSize: 14, fontWeight: 500 }}>- {establishmentName}</span>}
+          </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: credits <= lowCredit ? 'rgba(226, 75, 74, 0.08)' : '#161616', padding: '4px 12px', borderRadius: 8, border: `0.5px solid ${credits <= lowCredit ? C.red : C.border2}` }}>
+          {/* Créditos */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: credits <= lowCredit ? 'rgba(226,75,74,0.08)' : '#161616', padding: '4px 12px', borderRadius: 8, border: `0.5px solid ${credits <= lowCredit ? C.red : C.border2}` }}>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 8, color: C.muted, fontWeight: 600 }}>SALDO UP-T</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: credits <= lowCredit ? C.red : C.green }}>{credits} <span style={{fontSize: 9, fontWeight: 400}}>Creditos</span></div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: credits <= lowCredit ? C.red : C.green }}>
+                {credits} <span style={{ fontSize: 9, fontWeight: 400 }}>Creditos</span>
+              </div>
             </div>
-            <button onClick={() => window.open('https://wa.me/tu_numero', '_blank')} style={{ background: credits <= lowCredit ? C.red : C.panel2, color: credits <= lowCredit ? '#000' : C.text, border: 'none', padding: '4px 8px', borderRadius: 4, fontSize: 9, fontWeight: 700, cursor: 'pointer' }}>RECARGAR</button>
+            <button
+              onClick={() => window.open('https://wa.me/tu_numero', '_blank')}
+              style={{ background: credits <= lowCredit ? C.red : C.panel2, color: credits <= lowCredit ? '#000' : C.text, border: 'none', padding: '4px 8px', borderRadius: 4, fontSize: 9, fontWeight: 700, cursor: 'pointer' }}
+            >
+              RECARGAR
+            </button>
           </div>
+
+          {/* Toggle auto-play */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#161616', padding: '6px 14px', borderRadius: 8, border: `0.5px solid ${C.border2}` }}>
             <span style={{ fontSize: 11, color: autoPlay ? C.green : C.muted }}>{autoPlay ? 'Auto-play activo' : 'Moderación activa'}</span>
             <div onClick={() => onToggleAutoPlay(!autoPlay)} style={{ width: 32, height: 16, background: autoPlay ? C.green : '#333', borderRadius: 10, position: 'relative', cursor: 'pointer' }}>
               <div style={{ width: 12, height: 12, background: '#fff', borderRadius: '50%', position: 'absolute', top: 2, left: autoPlay ? 18 : 2, transition: '0.25s' }} />
             </div>
           </div>
-          <button onClick={() => window.open('/tvVideo', '_blank')} style={{ background: C.green, color: '#000', border: 'none', padding: '6px 14px', borderRadius: 6, fontWeight: 500, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+
+          {/* Abrir TV */}
+          <button
+            onClick={() => window.open('/tvVideo', '_blank')}
+            style={{ background: C.green, color: '#000', border: 'none', padding: '6px 14px', borderRadius: 6, fontWeight: 500, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+          >
             <IconTv /> Abrir TV
           </button>
         </div>
       </header>
 
+      {/* ── STATS ───────────────────────────────────────────────────────────── */}
       <div style={{ padding: '16px 24px 0' }}><StatsStrip /></div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '240px minmax(0, 1fr) 350px', gap: 14, padding: '0 24px 28px' }}>
+      {/* ── GRID PRINCIPAL ──────────────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '240px minmax(0,1fr) 350px', gap: 14, padding: '0 24px 28px' }}>
+
+        {/* ── COLUMNA IZQUIERDA: Publicidad ─────────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
           <div style={panel}>
             <div style={sectionLabel}><IconAd /><span style={{ color: C.green }}>Publicidad</span></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {ads.length === 0 ? <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '16px 0' }}>Sin anuncios activos</div>
+              {ads.length === 0
+                ? <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '16px 0' }}>Sin anuncios activos</div>
                 : ads.map(ad => (
                   <div key={ad.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: C.panel2, borderRadius: 7, border: `0.5px solid ${C.border}` }}>
                     <img src={ad.image_url} style={{ width: 32, height: 32, borderRadius: 4, objectFit: 'cover' }} />
@@ -505,55 +562,54 @@ export default function AdminView({
                       <div style={{ fontSize: 11, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ad.title}</div>
                       <div style={{ fontSize: 9, color: C.green, marginTop: 2 }}>cada {ad.frequency} canciones</div>
                     </div>
-                    {/* USO DE LA FUNCIÓN INTERNA PARA ELIMINAR */}
-                    <button onClick={() => handleRemoveAdInternal(ad.id)} style={{ ...actionBtn, background: 'transparent', color: C.red, opacity: 0.5, cursor: 'pointer' }}><IconTrash /></button>
+                    <button onClick={() => handleRemoveAdInternal(ad.id)} style={{ ...actionBtn, background: 'transparent', color: C.red, opacity: 0.5 }}>
+                      <IconTrash />
+                    </button>
                   </div>
                 ))
               }
-              <button onClick={() => setShowAdModal(true)} style={{ width: '100%', padding: '8px', background: 'transparent', border: `0.5px dashed ${C.green}`, color: C.green, borderRadius: 7, fontSize: 10, cursor: 'pointer', marginTop: 4 }}>+ agregar anuncio</button>
-            </div>
-          </div>
-
-          <div style={panel}>
-            <div style={{ ...sectionLabel, justifyContent: 'space-between' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: C.green }}><IconMessage />Mensajes</span>
-              {screenMessages.length > 0 && <span style={{ background: C.green, color: '#000', fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 4 }}>{screenMessages.length}</span>}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 340, overflowY: 'auto' }}>
-              {screenMessages.length === 0 ? <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '16px 0' }}>Sin mensajes nuevos</div>
-                : screenMessages.map(msg => (
-                  <div key={msg.id} style={{ background: C.panel2, borderLeft: `2px solid ${C.green}`, borderRadius: '0 7px 7px 0', padding: '10px 12px' }}>
-                    <div style={{ fontSize: 12, fontStyle: 'italic', marginBottom: 8 }}>"{msg.text}"</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ fontSize: 10, color: C.green }}>{msg.author || 'Anon'}<span style={{ color: C.muted, marginLeft: 5 }}>· {timeAgo(msg.created_at)}</span></div>
-                      <div style={{ display: 'flex', gap: 5 }}>
-                        <button onClick={() => handleMessageAction(msg.id, 'approved')} style={{ ...actionBtn, background: C.green, color: '#000', fontSize: 10, padding: '3px 10px' }}>Aprobar</button>
-                        <button onClick={() => handleMessageAction(msg.id, 'rejected')} style={{ ...actionBtn, background: 'transparent', border: `0.5px solid ${C.border2}`, color: C.muted, fontSize: 10, padding: '3px 10px' }}>Rechazar</button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              }
+              <button
+                onClick={() => setShowAdModal(true)}
+                style={{ width: '100%', padding: '8px', background: 'transparent', border: `0.5px dashed ${C.green}`, color: C.green, borderRadius: 7, fontSize: 10, cursor: 'pointer', marginTop: 4 }}
+              >
+                + agregar anuncio
+              </button>
             </div>
           </div>
         </div>
 
+        {/* ── COLUMNA CENTRAL: Buscador + Cola aprobada ─────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, overflow: 'hidden' }}>
+
+          {/* Buscador */}
           <div style={{ ...panel, border: `0.5px solid ${C.green}30`, position: 'relative' }}>
             <div style={{ ...sectionLabel, color: C.green }}>Buscador maestro</div>
             <div style={{ display: 'flex', background: C.panel2, padding: '9px 14px', borderRadius: 7, alignItems: 'center', gap: 10, border: `0.5px solid ${C.border}` }}>
               <IconSearch />
-              <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && performSearch(query)} placeholder="Escribe el nombre de la canción..." style={{ flex: 1, background: 'none', border: 'none', color: C.text, outline: 'none', fontSize: 13 }} />
+              <input
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && performSearch(query)}
+                placeholder="Escribe el nombre de la canción..."
+                style={{ flex: 1, background: 'none', border: 'none', color: C.text, outline: 'none', fontSize: 13 }}
+              />
               {query && <button onClick={() => { setQuery(""); setResults([]); setSuggestions([]); }} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer" }}>✕</button>}
               {searching && <div className="spinner" />}
             </div>
+
+            {/* Sugerencias */}
             {suggestions.length > 0 && (
               <div style={{ position: 'absolute', top: 78, left: 16, right: 16, background: '#1a1a1a', borderRadius: 7, zIndex: 100, border: `0.5px solid ${C.border2}`, overflow: 'hidden' }}>
                 {suggestions.map((s, idx) => (
-                  <div key={idx} onClick={() => { setQuery(s); performSearch(s); }} style={{ padding: '9px 14px', fontSize: 12, cursor: 'pointer', borderBottom: `0.5px solid ${C.border}` }}>{s}</div>
+                  <div key={idx} onClick={() => { setQuery(s); performSearch(s); }} style={{ padding: '9px 14px', fontSize: 12, cursor: 'pointer', borderBottom: `0.5px solid ${C.border}` }}>
+                    {s}
+                  </div>
                 ))}
               </div>
             )}
+
+            {/* Resultados */}
+            {error && <div style={{ fontSize: 11, color: C.red, marginTop: 10 }}>{error}</div>}
             {results.length > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14 }}>
                 {results.map(track => (
@@ -563,33 +619,64 @@ export default function AdminView({
                       <div style={{ fontSize: 11, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.title}</div>
                       <div style={{ fontSize: 9, color: C.muted }}>{track.artist}</div>
                     </div>
-                    <button onClick={() => { onAddSong(track); setQuery(""); setResults([]); }} style={{ ...actionBtn, background: C.green, color: '#000', width: 26, height: 26, fontSize: 16 }}>+</button>
+                    <button
+                      onClick={() => { onAddSong(track); setQuery(""); setResults([]); }}
+                      style={{ ...actionBtn, background: C.green, color: '#000', width: 26, height: 26, fontSize: 16 }}
+                    >
+                      +
+                    </button>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
+          {/* Cola aprobada */}
           <div style={panel}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <span style={sectionLabel}>Cola aprobada <span style={{ color: C.muted, marginLeft: 4 }}>({approvedQueue.length})</span></span>
-              {queue.length > 0 && <button onClick={() => window.confirm("¿Vaciar todas las canciones?") && onClearQueue()} style={{ background: 'transparent', border: `0.5px solid #3a1a1a`, color: C.red, padding: '3px 10px', borderRadius: 4, fontSize: 9, fontWeight: 500, cursor: 'pointer' }}>Vaciar lista</button>}
+              <span style={sectionLabel}>
+                Cola aprobada <span style={{ color: C.muted, marginLeft: 4 }}>({approvedQueue.length})</span>
+              </span>
+              {queue.length > 0 && (
+                <button
+                  onClick={() => window.confirm("¿Vaciar todas las canciones?") && onClearQueue()}
+                  style={{ background: 'transparent', border: `0.5px solid #3a1a1a`, color: C.red, padding: '3px 10px', borderRadius: 4, fontSize: 9, fontWeight: 500, cursor: 'pointer' }}
+                >
+                  Vaciar lista
+                </button>
+              )}
             </div>
-            {approvedQueue.length === 0 ? <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '20px 0' }}>Cola vacía</div>
+            {approvedQueue.length === 0
+              ? <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '20px 0' }}>Cola vacía</div>
               : approvedQueue.map((song, idx) => (
-                <div key={song.queueRowId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', borderBottom: `0.5px solid ${C.border}`, background: idx === currentIdx ? '#1DB95408' : 'transparent', borderLeft: song.is_cliente ? `2px solid ${C.green}` : '2px solid transparent' }}>
-                  <div style={{ width: 16, fontSize: 10, color: idx === currentIdx ? C.green : C.muted, textAlign: 'center' }}>{idx === currentIdx ? '▶' : idx + 1}</div>
+                <div key={song.queueRowId} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px',
+                  borderBottom: `0.5px solid ${C.border}`,
+                  background: idx === currentIdx ? '#1DB95408' : 'transparent',
+                  borderLeft: song.is_cliente ? `2px solid ${C.green}` : '2px solid transparent',
+                }}>
+                  <div style={{ width: 16, fontSize: 10, color: idx === currentIdx ? C.green : C.muted, textAlign: 'center' }}>
+                    {idx === currentIdx ? '▶' : idx + 1}
+                  </div>
                   <img src={song.img} style={{ width: 32, height: 32, borderRadius: 4 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 12, fontWeight: 500, color: idx === currentIdx ? C.green : C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</span>
-                      {idx === currentIdx && <span style={{ background: C.green, color: '#000', fontSize: 8, fontWeight: 600, padding: '1px 5px', borderRadius: 3 }}>ahora</span>}
+                      <span style={{ fontSize: 12, fontWeight: 500, color: idx === currentIdx ? C.green : C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {song.title}
+                      </span>
+                      {idx === currentIdx && (
+                        <span style={{ background: C.green, color: '#000', fontSize: 8, fontWeight: 600, padding: '1px 5px', borderRadius: 3 }}>ahora</span>
+                      )}
                     </div>
                     <div style={{ fontSize: 10, color: C.muted }}>{song.artist}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={() => onPlay(idx)} style={{ ...actionBtn, background: C.panel2, border: `0.5px solid ${C.border}`, color: C.green, width: 24, height: 24 }}><IconPlaySmall /></button>
-                    <button onClick={() => onRemove(queue.indexOf(song))} style={{ ...actionBtn, background: 'transparent', color: C.red, width: 24, height: 24, opacity: 0.5 }}><IconTrash /></button>
+                    <button onClick={() => onPlay(idx)} style={{ ...actionBtn, background: C.panel2, border: `0.5px solid ${C.border}`, color: C.green, width: 24, height: 24 }}>
+                      <IconPlaySmall />
+                    </button>
+                    <button onClick={() => onRemove(queue.indexOf(song))} style={{ ...actionBtn, background: 'transparent', color: C.red, width: 24, height: 24, opacity: 0.5 }}>
+                      <IconTrash />
+                    </button>
                   </div>
                 </div>
               ))
@@ -597,32 +684,157 @@ export default function AdminView({
           </div>
         </div>
 
+        {/* ── COLUMNA DERECHA: Solicitudes Pendientes (canciones + mensajes) ── */}
         <div style={panel}>
-          <div style={{ ...sectionLabel, color: C.amber }}><IconCheck /> Solicitudes Pendientes</div>
+
+          {/* Cabecera */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <span style={{ ...sectionLabel, color: C.amber, marginBottom: 0 }}>
+              <IconCheck /> Solicitudes Pendientes
+            </span>
+            {allPending.length > 0 && (
+              <span style={{ background: C.amber, color: '#000', fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 4 }}>
+                {allPending.length}
+              </span>
+            )}
+          </div>
+
+          {/* Filtros */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+            {[
+              { key: 'all',  label: 'Todos' },
+              { key: 'song', label: '♪ Canciones' },
+              { key: 'msg',  label: '✉ Mensajes' },
+            ].map(f => (
+              <button
+                key={f.key}
+                onClick={() => setPendingFilter(f.key)}
+                style={{
+                  background: pendingFilter === f.key ? C.panel2 : 'transparent',
+                  border: `0.5px solid ${pendingFilter === f.key ? C.border2 : C.border}`,
+                  color: pendingFilter === f.key ? C.text : C.muted,
+                  padding: '4px 10px', borderRadius: 5, fontSize: 10, cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Lista unificada */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {pendingRequests.length === 0 ? <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '24px 0' }}>No hay solicitudes</div>
-              : pendingRequests.map(song => (
-                <div key={song.queueRowId} style={{ background: C.panel2, padding: 12, borderRadius: 8, border: `0.5px solid ${song.is_cliente ? C.green + '40' : C.border}` }}>
-                  <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                    <img src={song.img} style={{ width: 44, height: 44, borderRadius: 6 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{song.title}</div>
-                      <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>{song.artist}</div>
-                      {song.is_cliente && <div style={{ fontSize: 9, color: C.green, fontWeight: 600 }}>SOLICITUD DE CLIENTE</div>}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => handleApproveSong(song)} style={{ ...actionBtn, flex: 1, background: C.green, color: '#000', height: 28, fontSize: 11, fontWeight: 600 }}>Aprobar</button>
-                    <button onClick={() => handleRemoveWithStats(queue.indexOf(song))} style={{ ...actionBtn, background: 'transparent', border: `0.5px solid ${C.border2}`, color: C.red, width: 28, height: 28 }}><IconTrash /></button>
-                  </div>
+            {allPending.filter(item => pendingFilter === 'all' || item.itemType === pendingFilter).length === 0
+              ? (
+                <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '24px 0' }}>
+                  No hay solicitudes
                 </div>
-              ))
+              )
+              : allPending
+                  .filter(item => pendingFilter === 'all' || item.itemType === pendingFilter)
+                  .map(item => {
+
+                    // ── Tarjeta CANCIÓN ──────────────────────────────────────
+                    if (item.itemType === 'song') {
+                      return (
+                        <div
+                          key={item.queueRowId}
+                          style={{ background: C.panel2, padding: 12, borderRadius: 8, border: `0.5px solid ${item.is_cliente ? C.green + '40' : C.border}` }}
+                        >
+                          {/* Badges */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', background: 'rgba(29,185,84,0.10)', color: C.green, padding: '2px 7px', borderRadius: 4 }}>
+                              ♪ CANCIÓN
+                            </span>
+                            {item.is_cliente && (
+                              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', background: 'rgba(29,185,84,0.08)', color: C.green, padding: '2px 7px', borderRadius: 4 }}>
+                                CLIENTE
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Info canción */}
+                          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                            <img src={item.img} style={{ width: 44, height: 44, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {item.title}
+                              </div>
+                              <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
+                                {item.artist} · <span style={{ color: '#444' }}>{timeAgo(item.created_at)}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Acciones canción */}
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              onClick={() => handleApproveSong(item)}
+                              style={{ ...actionBtn, flex: 1, background: C.green, color: '#000', height: 28, fontSize: 11, fontWeight: 600 }}
+                            >
+                              Aprobar
+                            </button>
+                            <button
+                              onClick={() => handleRemoveWithStats(queue.indexOf(item))}
+                              style={{ ...actionBtn, background: 'transparent', border: `0.5px solid ${C.border2}`, color: C.red, width: 28, height: 28 }}
+                            >
+                              <IconTrash />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // ── Tarjeta MENSAJE ──────────────────────────────────────
+                    return (
+                      <div
+                        key={item.id}
+                        style={{ background: C.panel2, padding: 12, borderRadius: 8, border: `0.5px solid ${C.blue}30` }}
+                      >
+                        {/* Badge + tiempo */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', background: 'rgba(133,183,235,0.10)', color: C.blue, padding: '2px 7px', borderRadius: 4 }}>
+                            ✉ MENSAJE
+                          </span>
+                          <span style={{ fontSize: 9, color: '#444' }}>{timeAgo(item.created_at)}</span>
+                        </div>
+
+                        {/* Texto del mensaje */}
+                        <div style={{ fontSize: 12, fontStyle: 'italic', color: '#c0c0c0', borderLeft: `2px solid ${C.blue}40`, paddingLeft: 10, marginBottom: 10, lineHeight: 1.5 }}>
+                          "{item.text}"
+                        </div>
+
+                        {/* Autor y Acciones mensaje */}
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 10, color: C.blue, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              De: {item.author || 'Anónimo'}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, flex: 1.5 }}>
+                            <button
+                              onClick={() => handleMessageAction(item.id, 'approved')}
+                              style={{ ...actionBtn, flex: 1, background: C.blue, color: '#042C53', height: 28, fontSize: 11, fontWeight: 600 }}
+                            >
+                              Aprobar
+                            </button>
+                            <button
+                              onClick={() => handleMessageAction(item.id, 'rejected')}
+                              style={{ ...actionBtn, background: 'transparent', border: `0.5px solid ${C.border2}`, color: C.red, width: 28, height: 28 }}
+                            >
+                              <IconTrash />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
             }
           </div>
         </div>
       </div>
 
-        {/* ── MODAL NUEVO ANUNCIO ───────────────────────────────────────────────────── */}
+      {/* ── MODAL NUEVO ANUNCIO ──────────────────────────────────────────────── */}
       {showAdModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.80)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ ...panel, width: '100%', maxWidth: 400, boxSizing: 'border-box', border: `0.5px solid ${C.green}50`, padding: 24 }}>
