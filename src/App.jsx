@@ -30,12 +30,11 @@ const formatDurationText = (seconds) => {
 };
 
 export default function App() {
-  // --- ESTADOS MULTI-ESTABLECIMIENTO ---
+  // --- ESTADOS ---
   const [establishments, setEstablishments] = useState([]);
   const [selectedEstId, setSelectedEstId] = useState("");
   const [credits, setCredits] = useState(0); 
 
-  // --- ESTADOS DE LA APP ---
   const [queue, setQueue] = useState([]);
   const [ads, setAds] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -44,7 +43,7 @@ export default function App() {
   const [messageAuthor, setMessageAuthor] = useState(null);
   const [autoPlay, setAutoPlay] = useState(true);
 
-  // 1. CARGAR LISTA DE LOCALES Y CRÉDITOS AL INICIO
+  // 1. CARGA INICIAL
   useEffect(() => {
     const fetchInitialData = async () => {
       const { data, error } = await supabase.from("establishments").select("*").order("name");
@@ -52,19 +51,15 @@ export default function App() {
         setEstablishments(data);
         const params = new URLSearchParams(window.location.search);
         const urlId = params.get("est");
-        
-        // Priorizar el ID de la URL o el primero de la lista
         const selected = data.find(e => e.id === urlId) || data[0];
         setSelectedEstId(selected.id);
         setCredits(selected.credits || 0);
-      } else if (error) {
-        console.error("Error cargando establecimientos:", error.message);
       }
     };
     fetchInitialData();
   }, []);
 
-  // 2. NORMALIZACIÓN DE ITEMS DE COLA
+  // 2. NORMALIZACIÓN
   const normalizeQueueItem = useCallback((item) => {
     const song = item.songs_repository || {};
     const youtubeId = song.youtube_id || item.youtube_id;
@@ -84,7 +79,7 @@ export default function App() {
     };
   }, []);
 
-  // 3. FETCHERS FILTRADOS POR LOCAL
+  // 3. FETCHERS
   const fetchQueue = useCallback(async () => {
     if (!selectedEstId) return;
     const { data } = await supabase
@@ -99,11 +94,7 @@ export default function App() {
 
   const fetchAds = useCallback(async () => {
     if (!selectedEstId) return;
-    const { data } = await supabase
-      .from("ads")
-      .select("*")
-      .eq("establishment_id", selectedEstId)
-      .eq("active", true);
+    const { data } = await supabase.from("ads").select("*").eq("establishment_id", selectedEstId).eq("active", true);
     if (data) setAds(data);
   }, [selectedEstId]);
 
@@ -116,73 +107,88 @@ export default function App() {
     }, { onConflict: "id" });
   }, [selectedEstId]);
 
-  // 4. REALTIME Y SINCRONIZACIÓN TOTAL
+  // 4. REALTIME
   useEffect(() => {
     if (!selectedEstId) return;
 
     const loadInitialState = async () => {
-      const { data } = await supabase
-        .from("app_state")
-        .select("*")
-        .eq("id", `config-${selectedEstId}`)
-        .maybeSingle();
-
+      const { data } = await supabase.from("app_state").select("*").eq("id", `config-${selectedEstId}`).maybeSingle();
       if (data) {
         setVolume(data.volume ?? 50);
         setCurrentIdx(data.current_idx ?? 0);
         setAutoPlay(data.auto_play ?? true);
-        setCurrentMessage(data.current_message);
-        setMessageAuthor(data.message_author);
       }
       fetchQueue();
       fetchAds();
     };
-
     loadInitialState();
 
-    // CANAL: ESTADO (app_state)
     const stateSub = supabase.channel(`state-${selectedEstId}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "app_state", filter: `id=eq.config-${selectedEstId}` },
-        payload => {
-          const r = payload.new;
-          if (r.volume !== undefined) setVolume(r.volume);
-          if (r.current_idx !== undefined) setCurrentIdx(r.current_idx);
-          setCurrentMessage(r.current_message);
-          setMessageAuthor(r.message_author);
-          if (r.auto_play !== undefined) setAutoPlay(r.auto_play);
-        }).subscribe();
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "app_state", filter: `id=eq.config-${selectedEstId}` }, payload => {
+        const r = payload.new;
+        if (r.volume !== undefined) setVolume(r.volume);
+        if (r.current_idx !== undefined) setCurrentIdx(r.current_idx);
+        if (r.auto_play !== undefined) setAutoPlay(r.auto_play);
+      }).subscribe();
 
-    // CANAL: COLA (queue)
     const queueSub = supabase.channel(`queue-${selectedEstId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "queue", filter: `establishment_id=eq.${selectedEstId}` },
-        () => fetchQueue()).subscribe();
+      .on("postgres_changes", { event: "*", schema: "public", table: "queue", filter: `establishment_id=eq.${selectedEstId}` }, () => fetchQueue()).subscribe();
 
-    // CANAL: CRÉDITOS (establishments) - ¡ESTO QUITA EL F5!
     const estSub = supabase.channel(`est-update-${selectedEstId}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "establishments", filter: `id=eq.${selectedEstId}` },
-        payload => {
-          if (payload.new.credits !== undefined) setCredits(payload.new.credits);
-        }).subscribe();
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "establishments", filter: `id=eq.${selectedEstId}` }, payload => {
+        if (payload.new.credits !== undefined) setCredits(payload.new.credits);
+      }).subscribe();
+
+    const msgSub = supabase.channel(`messages-tv-${selectedEstId}`)
+      .on("postgres_changes", { 
+        event: "*", 
+        schema: "public", 
+        table: "screen_messages", 
+        filter: `establishment_id=eq.${selectedEstId}` 
+      }, (payload) => {
+        const data = payload.new;
+        if (data && data.status === 'approved') {
+          setCurrentMessage(data.text);
+          setMessageAuthor(data.author);
+          
+          setTimeout(() => {
+            setCurrentMessage(null);
+            setMessageAuthor(null);
+          }, 1000);
+        }
+      }).subscribe();
 
     return () => {
       supabase.removeChannel(stateSub);
       supabase.removeChannel(queueSub);
       supabase.removeChannel(estSub);
+      supabase.removeChannel(msgSub);
     };
   }, [selectedEstId, fetchQueue, fetchAds]);
 
   // --- HANDLERS ---
+  const handleRemoveSong = async (rowId) => {
+    const { error } = await supabase.from("queue").delete().eq("id", rowId);
+    if (!error) setQueue(prev => prev.filter(item => item.queueRowId !== rowId));
+  };
+
+  const handleApproveWithCredits = async (rowId) => {
+    if (credits <= 0) return alert("⚠️ Sin saldo Up-T.");
+    const { error } = await supabase.rpc('approve_and_subtract_credit', {
+      p_request_id: rowId,
+      p_establishment_id: selectedEstId
+    });
+    if (error) alert("Error: " + error.message);
+  };
+
   const handleSongRequest = async (song, forceApprove = false) => {
     if (!selectedEstId) return;
-    const { data: repoSong } = await supabase
-      .from("songs_repository")
-      .upsert({
-        youtube_id: song.id || song.youtubeId,
-        title: song.title,
-        artist: song.artist,
-        img_url: song.img || song.img_url
-      }, { onConflict: 'youtube_id' })
-      .select().single();
+    const { data: repoSong } = await supabase.from("songs_repository").upsert({
+      youtube_id: song.id || song.youtubeId,
+      title: song.title,
+      artist: song.artist,
+      img_url: song.img || song.img_url
+    }, { onConflict: 'youtube_id' }).select().single();
 
     await supabase.from("queue").insert({
       establishment_id: selectedEstId,
@@ -192,67 +198,31 @@ export default function App() {
     });
   };
 
-  const handleApproveWithCredits = async (rowId) => {
-    if (credits <= 0) {
-      alert("⚠️ Saldo insuficiente en Up-T. Recarga para aprobar más Créditos.");
-      return;
-    }
-
-    const { error } = await supabase.rpc('approve_and_subtract_credit', {
-      p_request_id: rowId,
-      p_establishment_id: selectedEstId
-    });
-
-    if (error) {
-      alert("Error: " + error.message);
-    } else {
-      new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3").play().catch(() => {});
-      // No hace falta actualizar créditos manualmente, el Realtime lo hará
-    }
-  };
-
-  const handlePlayNow = (idx) => {
-    setCurrentIdx(idx);
-    updateAppState({ current_idx: idx });
-  };
-
-  const handleTrackEnd = () => {
-    const next = currentIdx + 1;
-    if (next < queue.length) handlePlayNow(next);
-  };
-
   const approvedQueue = queue.filter(s => s.isApproved);
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/tv" element={
-          <TvView
-            queue={approvedQueue}
-            currentIdx={currentIdx}
-            onTrackEnd={handleTrackEnd}
-            volume={volume}
-            currentMessage={currentMessage}
-            messageAuthor={messageAuthor}
+        <Route path="/tv" element={<TvView queue={approvedQueue} currentIdx={currentIdx} onTrackEnd={() => { const n = currentIdx + 1; if (n < approvedQueue.length) { setCurrentIdx(n); updateAppState({ current_idx: n }); }}} volume={volume} currentMessage={currentMessage} messageAuthor={messageAuthor} />} />
+        <Route path="/tvVideo" element={
+          <TvViewVideo 
+            queue={approvedQueue} 
+            currentIdx={currentIdx} 
+            volume={volume} 
+            onTrackEnd={() => { const n = currentIdx + 1; if (n < approvedQueue.length) { setCurrentIdx(n); updateAppState({ current_idx: n }); }}} 
+            ads={ads} 
+            establishmentId={selectedEstId} 
           />
         } />
-
         <Route path="/admin" element={
           <AdminView
             establishmentId={selectedEstId}
             credits={credits}
             queue={queue}
             currentIdx={currentIdx}
-            onPlay={handlePlayNow}
-            onClearQueue={async () => {
-              await supabase.from("queue").delete().eq("establishment_id", selectedEstId);
-              setQueue([]);
-              updateAppState({ current_idx: 0 });
-            }}
-            onRemove={async (idx) => {
-              const item = queue[idx];
-              if (item?.queueRowId) await supabase.from("queue").delete().eq("id", item.queueRowId);
-            }}
+            onPlay={(idx) => { setCurrentIdx(idx); updateAppState({ current_idx: idx }); }}
+            onClearQueue={async () => { await supabase.from("queue").delete().eq("establishment_id", selectedEstId); setQueue([]); updateAppState({ current_idx: 0 }); }}
+            onRemove={(idx) => { const item = queue[idx]; if (item?.queueRowId) handleRemoveSong(item.queueRowId); }}
             onApprove={handleApproveWithCredits}
             autoPlay={autoPlay}
             onToggleAutoPlay={(val) => { setAutoPlay(val); updateAppState({ auto_play: val }); }}
@@ -261,40 +231,11 @@ export default function App() {
             ads={ads}
             onAddAd={fetchAds}
             onRemoveAd={fetchAds}
-            onApproveMessage={(msg) => updateAppState({ current_message: msg.text, message_author: msg.author })}
             onAddSong={(s) => handleSongRequest(s, true)}
           />
         } />
-
-        <Route path="/tvVideo" element={
-          <TvViewVideo
-            queue={approvedQueue}
-            currentIdx={currentIdx}
-            volume={volume}
-            onTrackEnd={handleTrackEnd}
-            currentMessage={currentMessage}
-            message_author={messageAuthor}
-            ads={ads}
-          />
-        } />
-
-        <Route path="/scan" element={
-          <CustomerView
-            establishmentId={selectedEstId}
-            onSongRequest={handleSongRequest}
-            queue={queue}
-            currentIdx={currentIdx}
-          />
-        } />
-
-        <Route path="/" element={
-           <CustomerView 
-             establishmentId={selectedEstId} 
-             onSongRequest={handleSongRequest} 
-             queue={queue} 
-             currentIdx={currentIdx}
-           />
-        } />
+        <Route path="/scan" element={<CustomerView establishmentId={selectedEstId} onSongRequest={handleSongRequest} queue={queue} currentIdx={currentIdx} />} />
+        <Route path="/" element={<CustomerView establishmentId={selectedEstId} onSongRequest={handleSongRequest} queue={queue} currentIdx={currentIdx} />} />
       </Routes>
     </BrowserRouter>
   );

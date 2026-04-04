@@ -192,6 +192,7 @@ export default function AdminView({
     const fetchMessages = async () => {
       const { data } = await supabase
         .from('screen_messages').select('*')
+        .eq('establishment_id', establishmentId)
         .eq('status', 'pending').order('created_at', { ascending: false });
       if (data) setScreenMessages(data);
     };
@@ -199,13 +200,15 @@ export default function AdminView({
     const channel = supabase
       .channel('admin-messages-panel')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'screen_messages' }, (payload) => {
-        setScreenMessages(prev => [payload.new, ...prev]);
-        const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
-        audio.volume = 0.2;
-        audio.play().catch(() => {});
+        if (payload.new.establishment_id === establishmentId) {
+          setScreenMessages(prev => [payload.new, ...prev]);
+          const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
+          audio.volume = 0.2;
+          audio.play().catch(() => {});
+        }
       }).subscribe();
     return () => supabase.removeChannel(channel);
-  }, []);
+  }, [establishmentId]);
 
   // Función de aprobación mejorada con créditos
   const handleApproveSong = async (song) => {
@@ -226,28 +229,52 @@ export default function AdminView({
   };
 
   const handleMessageAction = async (id, newStatus) => {
+    // 1. Encontrar el mensaje en el estado local antes de quitarlo
     const msg = screenMessages.find(m => m.id === id);
-    
+    if (!msg) return;
+
+    // 2. Validar saldo si se intenta aprobar
     if (newStatus === 'approved' && credits <= 0) {
-      alert("⚠️ Saldo insuficiente en Up-T.");
+      alert("⚠️ Saldo insuficiente en Up-T. Recarga para aprobar más mensajes.");
       return;
     }
 
-    setScreenMessages(prev => prev.filter(m => m.id !== id));
-    if (supabase) {
+    try {
       if (newStatus === 'approved') {
+        // --- CASO: APROBAR (Descuenta crédito y actualiza tabla) ---
         const { error } = await supabase.rpc('approve_and_subtract_credit', {
-            p_request_id: id,
-            p_establishment_id: establishmentId
+          p_request_id: id,
+          p_establishment_id: establishmentId
         });
-        if (!error) {
-            setApprovedMessagesCount(prev => prev + 1);
-            if (msg && onApproveMessage) onApproveMessage(msg);
-        }
+
+        if (error) throw error;
+
+        // Éxito: Actualizar contadores y notificar al padre (App.jsx)
+        setApprovedMessagesCount(prev => prev + 1);
+        if (onApproveMessage) onApproveMessage(msg);
+        
       } else {
-        await supabase.from('screen_messages').update({ status: newStatus }).eq('id', id);
-        if (newStatus === 'rejected') setRejectedMessagesCount(prev => prev + 1);
+        // --- CASO: RECHAZAR O ELIMINAR ---
+        const { error } = await supabase
+          .from('screen_messages')
+          .update({ status: newStatus })
+          .eq('id', id);
+
+        if (error) throw error;
+
+        if (newStatus === 'rejected') {
+          setRejectedMessagesCount(prev => prev + 1);
+        }
       }
+
+      // 3. Quitar el mensaje de la lista visual solo después de confirmar éxito en DB
+      setScreenMessages(prev => prev.filter(m => m.id !== id));
+
+    } catch (err) {
+      console.error("Error en acción de mensaje:", err);
+      alert("No se pudo procesar la acción: " + (err.message || "Error de conexión"));
+      
+      // Opcional: Podrías recargar los mensajes aquí si hubo error para sincronizar
     }
   };
 

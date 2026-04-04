@@ -36,7 +36,7 @@ export default function TvViewVideo({
   onTrackEnd, 
   volume = 50, 
   ads = [],
-  restaurantId 
+  establishmentId 
 }) {
   const hasQueue = queue.length > 0;
   const safeIdx = hasQueue ? Math.min(currentIdx, queue.length - 1) : 0;
@@ -66,22 +66,71 @@ export default function TvViewVideo({
   useEffect(() => { volumeRef.current = volume; }, [volume]);
   useEffect(() => { startedRef.current = started; }, [started]);
 
+  // --- SUSCRIPCIÓN DE MENSAJES CORREGIDA ---
+// --- SUSCRIPCIÓN DE MENSAJES (VERSIÓN ULTRA-CONFIABLE) ---
+// --- MÉTODO DE SUSCRIPCIÓN COMPLETO Y OPTIMIZADO ---
   useEffect(() => {
+    // 1. Validamos que tengamos el ID del local antes de intentar conectar
+    if (!establishmentId) {
+      console.warn("⚠️ Esperando establishmentId para conectar Realtime...");
+      return;
+    }
+
+    console.log(`📡 Sintonizando mensajes para el local: ${establishmentId}`);
+
+    // 2. Creamos el canal único para este local
     const channel = supabase
-      .channel('screen-messages')
+      .channel(`tv-messages-${establishmentId}`) 
       .on(
         'postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'screen_messages', filter: `status=eq.approved` }, 
+        { 
+          event: 'INSERT', // Solo nos interesan mensajes nuevos
+          schema: 'public', 
+          table: 'screen_messages',
+          // Filtro de servidor: Supabase solo nos envía lo que pertenece a este ID
+          filter: `establishment_id=eq.${establishmentId}` 
+        }, 
         (payload) => {
-            if (payload.new.restaurant_id === restaurantId) {
-                const newMsg = { id: payload.new.id, text: payload.new.text, author: payload.new.author };
+            const data = payload.new;
+            console.log("📩 Datos recibidos de la DB:", data);
+
+            // 3. DOBLE VALIDACIÓN (Seguridad extra)
+            // Verificamos manualmente que el ID coincida y el estado sea 'approved'
+            const isMyLocal = String(data.establishment_id) === String(establishmentId);
+            const isApproved = data.status === 'approved';
+
+            if (data && isMyLocal && isApproved) {
+                console.log("✨ Mensaje validado con éxito. Agregando a la cola...");
+                
+                // Creamos el objeto del mensaje para la cola
+                const newMsg = { 
+                    id: data.id, 
+                    text: data.text, 
+                    author: data.author 
+                };
+
+                // Lo añadimos a la cola de mensajes
                 setMessageQueue((prev) => [...prev, newMsg]);
+            } else {
+                console.log("🚫 Mensaje descartado: No aprobado o ID incorrecto.");
             }
         }
       )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [restaurantId]);
+      .subscribe((status) => {
+        // Log para saber si la conexión está viva en la consola
+        console.log(`🔌 Estado de la conexión: ${status}`);
+        
+        if (status === 'CHANNEL_ERROR') {
+          console.error("❌ Error crítico: Verifica la réplica de la tabla en Supabase.");
+        }
+      });
+
+    // 4. Limpieza: Cerramos el canal cuando el componente se destruye
+    return () => { 
+      console.log("🔌 Cerrando conexión de mensajes...");
+      supabase.removeChannel(channel); 
+    };
+  }, [establishmentId]); // Se reinicia solo si el ID del local cambia
 
   useEffect(() => {
     if (!displayMessage && messageQueue.length > 0) {
@@ -95,12 +144,13 @@ export default function TvViewVideo({
     if (displayMessage) {
       const timer = setTimeout(() => {
         setDisplayMessage(null);
-        supabase.from('screen_messages').update({ status: 'displayed' }).eq('id', displayMessage.id);
+        supabase.from('screen_messages').update({ status: 'displayed' }).eq('id', displayMessage.id).then();
       }, 10000);
       return () => clearTimeout(timer);
     }
   }, [displayMessage]);
 
+  // --- PUBLICIDAD ---
   useEffect(() => {
     if (ads.length > 0 && currentIdx > 0) {
       const matchingAds = ads.filter(ad => currentIdx % ad.frequency === 0);
@@ -124,6 +174,7 @@ export default function TvViewVideo({
     if (adVideoRef.current) { adVideoRef.current.volume = volume / 100; }
   }, [volume, showAd]);
 
+  // --- YOUTUBE API ---
   useEffect(() => {
     if (!window.QRCode) {
       const s = document.createElement("script");
@@ -142,38 +193,25 @@ export default function TvViewVideo({
 
   const initPlayer = () => {
     if (window.ytPlayerInstance) return;
-
-    // Pre-configuración del elemento para evitar advertencias de permisos
     const playerDiv = document.getElementById("youtube-player");
     if (playerDiv) {
       playerDiv.setAttribute("allow", "autoplay; encrypted-media; compute-pressure");
     }
-
     window.ytPlayerInstance = new window.YT.Player("youtube-player", {
       height: "100%", 
       width: "100%",
       videoId: "",
       playerVars: { 
-        autoplay: 1, 
-        mute: 1, 
-        controls: 0, 
-        disablekb: 1, 
-        modestbranding: 1, 
-        rel: 0,
-        enablejsapi: 1,
+        autoplay: 1, mute: 1, controls: 0, disablekb: 1, modestbranding: 1, rel: 0, enablejsapi: 1,
         origin: window.location.origin
       },
       events: {
         onReady: (e) => { 
           const iframe = e.target.getIframe();
-          if (iframe) {
-            iframe.setAttribute("allow", "autoplay; encrypted-media; compute-pressure");
-          }
+          if (iframe) iframe.setAttribute("allow", "autoplay; encrypted-media; compute-pressure");
           setPlayer(e.target); 
         },
-        onStateChange: (e) => {
-          if (e.data === window.YT.PlayerState.ENDED) onTrackEndRef.current();
-        },
+        onStateChange: (e) => { if (e.data === window.YT.PlayerState.ENDED) onTrackEndRef.current(); },
         onError: () => { onTrackEndRef.current(); },
       },
     });
@@ -182,13 +220,11 @@ export default function TvViewVideo({
   useEffect(() => {
     if (!player || !track.youtubeId) return;
     if (lastVideoIdRef.current === track.youtubeId) return;
-
     try {
         lastVideoIdRef.current = track.youtubeId;
         player.mute();
         player.loadVideoById(track.youtubeId);
         player.playVideo();
-
         if (startedRef.current) {
           setTimeout(() => {
             if (player.unMute) {
@@ -197,16 +233,13 @@ export default function TvViewVideo({
             }
           }, 1000);
         }
-    } catch (err) { 
-        console.error("Error cargando video:", err); 
-    }
+    } catch (err) { console.error("Error cargando video:", err); }
   }, [track.youtubeId, player]);
 
   useEffect(() => {
     if (player && player.setVolume) {
       player.setVolume(volume);
-      if (volume === 0) player.mute();
-      else player.unMute();
+      if (volume === 0) player.mute(); else player.unMute();
     }
   }, [volume, player]);
 
@@ -244,15 +277,8 @@ export default function TvViewVideo({
           <div style={{ flex: 1, minHeight: 0, borderRadius: 20, overflow: "hidden", boxShadow: `0 30px 80px rgba(0,0,0,0.8), 0 0 60px ${track.color}33`, background: "#000", position: "relative" }}>
             
             <div style={{ width: "100%", height: "100%", position: "absolute", inset: 0, opacity: (showAd || !track.youtubeId) ? 0 : 1, transition: "opacity 0.3s" }}>
-               {/* Atributo allow añadido preventivamente al contenedor */}
-               <div id="youtube-player" allow="autoplay; encrypted-media; compute-pressure"></div>
+               <div id="youtube-player" style={{width: "100%", height: "100%"}}></div>
             </div>
-
-            {!track.youtubeId && !showAd && (
-              <div style={{ position: "absolute", inset: 0, zIndex: 10 }}>
-                <img src={track.img} style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.5 }} alt="" />
-              </div>
-            )}
 
             {showAd && currentAd && (
               <div style={{ position: "absolute", inset: 0, zIndex: 50, background: "#000", animation: "slideUp 0.5s ease" }}>
@@ -268,11 +294,11 @@ export default function TvViewVideo({
             {displayMessage && (
                 <div style={{ 
                     position: "absolute", inset: 0, zIndex: 100, display: "flex", flexDirection: "column", 
-                    alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.80)", 
+                    alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.85)", 
                     backdropFilter: "blur(15px)", textAlign: "center", padding: "2rem", animation: "fadeIn 0.5s ease" 
                 }}>
                     <div style={{ fontSize: "1rem", color: track.color, fontWeight: 800, letterSpacing: "0.5em", marginBottom: "1.5vh", textTransform: "uppercase" }}>✨ Pedido Especial ✨</div>
-                    <div style={{ fontSize: "clamp(1.5rem, 8vw, 8rem)", fontWeight: 900, color: "#fff", lineHeight: 1.1 }}>{displayMessage.text}</div>
+                    <div style={{ fontSize: "clamp(1.5rem, 6vw, 8rem)", fontWeight: 900, color: "#fff", lineHeight: 1.1 }}>{displayMessage.text}</div>
                     <div style={{ marginTop: "1.5vh", fontSize: "2rem", color: track.color, fontWeight: 600, fontStyle: "italic" }}>— {displayMessage.author}</div>
                 </div>
             )}
@@ -280,8 +306,8 @@ export default function TvViewVideo({
 
           <div style={{ flexShrink: 0, paddingLeft: 10, paddingTop: "0.75rem" }}>
             <div key={track.id} style={{ animation: "slideUp 0.6s ease" }}>
-              <div style={{ fontWeight: 800, color: "#fff", lineHeight: 1.1, letterSpacing: "-0.02em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
-              <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.55)", marginTop: "0.3rem" }}>{track.artist}</div>
+              <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#fff", lineHeight: 1.1, letterSpacing: "-0.02em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{track.title}</div>
+              <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.55)", marginTop: "0.3rem" }}>{track.artist}</div>
             </div>
             <div style={{ marginTop: "0.75rem" }}>
               <div style={{ position: "relative", height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 99, overflow: "hidden" }}>
@@ -298,8 +324,7 @@ export default function TvViewVideo({
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem", height: "100%", overflowY: "auto" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "0.2em" }}>{queue.length > 0 ? "PEDIDAS POR CLIENTES" : "NEXT UP"}</div>
-              {queue.length > 0 && <div style={{ background: "rgba(29,185,84,0.15)", border: "1px solid rgba(29,185,84,0.3)", borderRadius: 99, padding: "2px 7px", fontSize: 9, color: "#1db954", fontWeight: 700 }}>{queue.length}</div>}
+              <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: "0.2em" }}>PROXIMAS CANCIONES</div>
             </div>
             <div style={{ display: "flex", flexDirection: "column" }}>
               {visibleTracks.map((t, i) => {

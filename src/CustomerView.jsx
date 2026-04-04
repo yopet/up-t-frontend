@@ -108,7 +108,7 @@ const parseDurationString = (value) => {
   return parts[0] || 0;
 };
 
-export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0 }) {
+export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0, establishmentId }) {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]); 
   const [results, setResults] = useState([]);
@@ -274,6 +274,7 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
         .insert([{ 
           text: msgText, 
           author: msgAuthor || "Invitado",
+          establishment_id: establishmentId,
           status: 'pending' 
         }]);
       if (error) throw error;
