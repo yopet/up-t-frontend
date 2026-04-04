@@ -59,6 +59,7 @@ export default function TvViewVideo({
 
   const [displayMessage, setDisplayMessage] = useState(null);
   const [messageQueue, setMessageQueue] = useState([]);
+  const [pin, setPin] = useState(null);
 
   const onTrackEndRef = useRef(onTrackEnd);
   const volumeRef = useRef(volume);
@@ -69,6 +70,40 @@ export default function TvViewVideo({
   useEffect(() => { onTrackEndRef.current = onTrackEnd; }, [onTrackEnd]);
   useEffect(() => { volumeRef.current = volume; }, [volume]);
   useEffect(() => { startedRef.current = started; }, [started]);
+
+  // --- PIN ---
+  useEffect(() => {
+    if (!establishmentId) return;
+
+    const fetchPin = async () => {
+      const { data } = await supabase
+        .from("app_state")
+        .select("pin, pin_expires_at")
+        .eq("establishment_id", establishmentId)
+        .maybeSingle();
+      if (data?.pin) {
+        const expired = data.pin_expires_at && new Date(data.pin_expires_at) < new Date();
+        setPin(expired ? null : data.pin);
+      }
+    };
+    fetchPin();
+
+    const channel = supabase
+      .channel(`pin-realtime-${establishmentId}`)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "app_state",
+        filter: `establishment_id=eq.${establishmentId}`,
+      }, (payload) => {
+        const { pin: newPin, pin_expires_at } = payload.new;
+        const expired = pin_expires_at && new Date(pin_expires_at) < new Date();
+        setPin(newPin && !expired ? newPin : null);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [establishmentId]);
 
   // --- MENSAJES EN TIEMPO REAL ---
   useEffect(() => {
@@ -396,7 +431,7 @@ export default function TvViewVideo({
         style={{
           position: "fixed",
           top: "50%",
-          right: 28,
+          right: 10,
           transform: "translateY(-50%)",
           zIndex: 20,
           display: "flex",
@@ -407,21 +442,7 @@ export default function TvViewVideo({
           transition: "opacity 0.5s",
         }}
       >
-        <div
-          style={{
-            fontSize: 11,
-            color: "rgba(255,255,255,0.55)",
-            textAlign: "center",
-            lineHeight: 1.6,
-            marginBottom: 2,
-          }}
-        >
-          ¿Quieres escuchar algo?
-          <br />
-          <span style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", letterSpacing: "0.04em" }}>
-            Escanea y elige tu canción
-          </span>
-        </div>
+        
         <div
           style={{
             background: "rgba(0,0,0,0.22)",
@@ -431,10 +452,52 @@ export default function TvViewVideo({
             border: "0.5px solid rgba(255,255,255,0.09)",
           }}
         >
+          <div
+          style={{
+            fontSize: 11,
+            color: "white",
+            textAlign: "center",
+          }}
+        >
+          ¿Quieres escuchar algo?
+          <br />
+          <span style={{ fontSize: 9, color: "white", letterSpacing: "0.04em" }}>
+            Escanea y elige tu canción
+          </span>
+        </div>
           {qrReady && (
             <QRCode url={track.qr || SCAN_URL} size={200} key={track.id} />
           )}
+           {pin && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <div style={{ fontSize: 7, color: "white", letterSpacing: "0.2em", textTransform: "uppercase" }}>
+              e ingresa el PIN
+            </div>
+            <div style={{
+              fontSize: 32,
+              fontWeight: 900,
+              color: "white",
+              letterSpacing: "0.22em",
+              fontFamily: "'Courier New', monospace",
+              lineHeight: 1,
+            }}>
+              {pin.split("").join(" ")}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}>
+              <div style={{
+                width: 5, height: 5, borderRadius: "50%",
+                background: "#1d9e75",
+                animation: "pinBlink 1.4s ease-in-out infinite",
+              }} />
+              <div style={{ fontSize: 7, color: "white", letterSpacing: "0.06em" }}>
+                activo hoy
+              </div>
+            </div>
+          </div>
+        )}
         </div>
+
+       
 
       </div>
 
@@ -588,6 +651,10 @@ export default function TvViewVideo({
         @keyframes progressAd {
           from { width: 0%; }
           to   { width: 100%; }
+        }
+        @keyframes pinBlink {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.3; }
         }
       `}</style>
     </div>

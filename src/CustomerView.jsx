@@ -13,6 +13,8 @@ const API_KEYS = [
 const EXHAUSTED_KEY = "yt_exhausted_keys";
 const EXHAUSTED_UNTIL_KEY = "yt_exhausted_until";
 const COOLDOWN_MINUTES = 2;
+const PIN_SESSION_KEY = "up_t_pin_verified"; // { estId, until }
+const PIN_SESSION_HOURS = 6; // La sesión dura 6h — al cerrar el local se invalida sola
 
 function getAvailableKey() {
   const until = parseInt(localStorage.getItem(EXHAUSTED_UNTIL_KEY) || "0");
@@ -46,23 +48,11 @@ function isQuotaError(data) {
 // ─── INVIDIOUS CONFIG ────────────────────────────────────────────────────────
 // Instancias ordenadas por confiabilidad — rota automáticamente si una falla
 const INVIDIOUS_INSTANCES = [
-  "https://iv.melmac.space", // Movida al primer lugar según tus logs
-  "https://invidious.projectsegfau.lt", 
+  "https://yewtu.be",
+  "https://invidious.privacydev.net",
   "https://inv.tux.pizza",
-  "https://invidious.no-logs.com",  
 ];
 const INVIDIOUS_TIMEOUT_MS = 3000; // Si tarda más de 3s, cae a YouTube
-const LAST_WORKING_INSTANCE_KEY = "up_t_last_invidious_instance";
-
-// Retorna la lista de instancias priorizando la que funcionó la última vez
-function getPrioritizedInstances() {
-  const lastWorking = localStorage.getItem(LAST_WORKING_INSTANCE_KEY);
-  if (lastWorking && INVIDIOUS_INSTANCES.includes(lastWorking)) {
-    const others = INVIDIOUS_INSTANCES.filter(i => i !== lastWorking);
-    return [lastWorking, ...others];
-  }
-  return INVIDIOUS_INSTANCES;
-}
 
 // Normaliza un resultado de Invidious al mismo formato que usa la app
 function normalizeInvidious(item) {
@@ -114,41 +104,30 @@ function formatDuration(iso) {
 
 // 1. Intenta buscar en Invidious rotando instancias
 async function searchInvidious(term, signal) {
-  const instances = getPrioritizedInstances();
-  for (const instance of instances) {
+  for (const instance of INVIDIOUS_INSTANCES) {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), INVIDIOUS_TIMEOUT_MS);
       // Si el signal externo aborta, también abortamos esta petición
       signal?.addEventListener("abort", () => controller.abort());
 
-      console.log(`[Up-T] Probando búsqueda en: ${instance}`);
       const res = await fetch(
         `${instance}/api/v1/search?q=${encodeURIComponent(term)}&type=video&fields=videoId,title,author,lengthSeconds,videoThumbnails&page=1`,
-        { signal: controller.signal, mode: 'cors' }
+        { signal: controller.signal }
       );
       clearTimeout(timeoutId);
 
-      if (!res.ok) {
-        console.log(`[Up-T] No se logró con ${instance} (Status: ${res.status})`);
-        continue;
-      }
+      if (!res.ok) continue; // Prueba con la siguiente instancia
       const data = await res.json();
-      if (!Array.isArray(data) || data.length === 0) {
-        console.log(`[Up-T] No se logró con ${instance} (Instancia sin resultados)`);
-        continue;
-      }
+      if (!Array.isArray(data) || data.length === 0) continue;
 
-      console.log(`[Up-T] ¡Se logró con la instancia: ${instance}!`);
-      // Guardamos la instancia exitosa para que sea la primera opción la próxima vez
-      localStorage.setItem(LAST_WORKING_INSTANCE_KEY, instance);
+      // Éxito — retorna los primeros 5 resultados normalizados
       return data.slice(0, 5).map(normalizeInvidious);
-    } catch (err) {
-      console.log(`[Up-T] No se logró con ${instance} (Error o Timeout: ${err.name === 'AbortError' ? 'Tiempo agotado' : 'Fallo de red'})`);
+    } catch {
+      // Timeout o error de red — prueba con la siguiente instancia
       continue;
     }
   }
-  console.log(`[Up-T] Todas las instancias de Invidious fallaron. Pasando a YouTube...`);
   return null; // Todas las instancias fallaron
 }
 
@@ -169,14 +148,12 @@ async function searchYouTube(term, signal) {
     let data = await searchWithKey(currentKey);
 
     while (isQuotaError(data)) {
-      console.log(`[Up-T] No se logró con YouTube (API Key agotada), probando la siguiente...`);
       markKeyExhausted(currentKey);
       currentKey = getAvailableKey();
       if (!currentKey) return { results: null, exhausted: true };
       data = await searchWithKey(currentKey);
     }
 
-    console.log(`[Up-T] ¡Se logró con YouTube API!`);
     const items = data.items || [];
     if (!items.length) return { results: [], exhausted: false };
 
@@ -272,6 +249,74 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
   const [msgText, setMsgText] = useState("");
   const [msgAuthor, setMsgAuthor] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);
+
+  // ─── PIN GATE ────────────────────────────────────────────────────────────
+  const [pinVerified, setPinVerified] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(PIN_SESSION_KEY) || "null");
+      if (!stored) return false;
+      const valid = stored.estId === String(establishmentId) && Date.now() < stored.until;
+      return valid;
+    } catch { return false; }
+  });
+  const [pinInput, setPinInput] = useState(["", "", "", ""]);
+  const [pinError, setPinError] = useState("");
+  const [pinLoading, setPinLoading] = useState(false);
+  const pinRefs = [useRef(null), useRef(null), useRef(null), useRef(null)];
+
+  const handlePinDigit = (val, idx) => {
+    const digit = val.replace(/\D/g, "").slice(-1);
+    const next = [...pinInput];
+    next[idx] = digit;
+    setPinInput(next);
+    setPinError("");
+    if (digit && idx < 3) pinRefs[idx + 1].current?.focus();
+    if (!digit && idx > 0) pinRefs[idx - 1].current?.focus();
+  };
+
+  const handlePinKeyDown = (e, idx) => {
+    if (e.key === "Backspace" && !pinInput[idx] && idx > 0) {
+      pinRefs[idx - 1].current?.focus();
+    }
+  };
+
+  const validatePin = async () => {
+    const entered = pinInput.join("");
+    if (entered.length < 4) { setPinError("Ingresa los 4 dígitos"); return; }
+    setPinLoading(true);
+    setPinError("");
+    try {
+      const { data, error } = await supabase
+        .from("app_state")
+        .select("pin, pin_expires_at")
+        .eq("establishment_id", establishmentId)
+        .maybeSingle();
+
+      if (error || !data?.pin) { setPinError("Error al verificar. Intenta de nuevo."); return; }
+
+      const expired = data.pin_expires_at && new Date(data.pin_expires_at) < new Date();
+      if (expired) { setPinError("El PIN expiró. Pide el nuevo al staff."); return; }
+
+      if (data.pin !== entered) {
+        setPinError("PIN incorrecto");
+        setPinInput(["", "", "", ""]);
+        setTimeout(() => pinRefs[0].current?.focus(), 50);
+        return;
+      }
+
+      // PIN correcto — guarda sesión por PIN_SESSION_HOURS
+      localStorage.setItem(PIN_SESSION_KEY, JSON.stringify({
+        estId: String(establishmentId),
+        until: Date.now() + PIN_SESSION_HOURS * 60 * 60 * 1000,
+      }));
+      setPinVerified(true);
+    } catch {
+      setPinError("Error de conexión");
+    } finally {
+      setPinLoading(false);
+    }
+  };
+  // ─────────────────────────────────────────────────────────────────────────
 
   const inputRef = useRef(null);
 
@@ -414,6 +459,95 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
   const border = "rgba(255,255,255,0.07)";
   const muted = "rgba(255,255,255,0.35)";
   const muted2 = "rgba(255,255,255,0.18)";
+
+  // ─── PIN GATE — bloquea todo el contenido hasta verificar ────────────────
+  if (!pinVerified) {
+    return (
+      <div style={{
+        minHeight: "100vh", background: bg, display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", padding: "2rem",
+        fontFamily: "system-ui, -apple-system, sans-serif",
+      }}>
+        <div style={{
+          width: "100%", maxWidth: 340, display: "flex", flexDirection: "column",
+          alignItems: "center", gap: 32, animation: "modalIn 0.4s ease",
+        }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.22em", textTransform: "uppercase", marginBottom: 10 }}>
+              Up-T · Gastrobar
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", marginBottom: 6 }}>
+              Ingresa el PIN
+            </div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", lineHeight: 1.5 }}>
+              Encuéntralo en la pantalla del local
+            </div>
+          </div>
+
+          {/* 4 cajas de dígito */}
+          <div style={{ display: "flex", gap: 12 }}>
+            {pinInput.map((digit, i) => (
+              <input
+                key={i}
+                ref={pinRefs[i]}
+                type="tel"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handlePinDigit(e.target.value, i)}
+                onKeyDown={(e) => handlePinKeyDown(e, i)}
+                style={{
+                  width: 56, height: 68, textAlign: "center", fontSize: 28,
+                  fontWeight: 700, fontFamily: "'Courier New', monospace",
+                  background: digit ? "rgba(29,185,84,0.1)" : "#161616",
+                  border: `1.5px solid ${digit ? "rgba(29,185,84,0.5)" : "rgba(255,255,255,0.1)"}`,
+                  borderRadius: 12, color: "#fff", outline: "none",
+                  transition: "all 0.15s ease", caretColor: "transparent",
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Error */}
+          {pinError && (
+            <div style={{
+              fontSize: 13, color: "rgba(255,100,100,0.9)", textAlign: "center",
+              background: "rgba(255,60,60,0.08)", border: "1px solid rgba(255,60,60,0.2)",
+              borderRadius: 10, padding: "10px 16px", width: "100%", boxSizing: "border-box",
+              animation: "shake 0.3s ease",
+            }}>
+              {pinError}
+            </div>
+          )}
+
+          {/* Botón */}
+          <button
+            onClick={validatePin}
+            disabled={pinInput.join("").length < 4 || pinLoading}
+            style={{
+              width: "100%", padding: "14px", borderRadius: 30, border: "none",
+              background: pinInput.join("").length === 4 ? "#1db954" : "rgba(255,255,255,0.08)",
+              color: pinInput.join("").length === 4 ? "#000" : "rgba(255,255,255,0.3)",
+              fontSize: 15, fontWeight: 700, cursor: pinInput.join("").length === 4 ? "pointer" : "default",
+              transition: "all 0.2s ease", fontFamily: "inherit",
+            }}
+          >
+            {pinLoading
+              ? <span style={{ display: "inline-block", width: 18, height: 18, border: "2px solid rgba(0,0,0,0.3)", borderTopColor: "#000", borderRadius: "50%", animation: "spin 0.7s linear infinite", verticalAlign: "middle" }} />
+              : "Entrar"
+            }
+          </button>
+        </div>
+
+        <style>{`
+          @keyframes modalIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+          @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+          @keyframes spin { to { transform: rotate(360deg); } }
+        `}</style>
+      </div>
+    );
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <div style={{
