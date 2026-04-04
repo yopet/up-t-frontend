@@ -67,70 +67,77 @@ export default function TvViewVideo({
   useEffect(() => { startedRef.current = started; }, [started]);
 
   // --- SUSCRIPCIÓN DE MENSAJES CORREGIDA ---
-// --- SUSCRIPCIÓN DE MENSAJES (VERSIÓN ULTRA-CONFIABLE) ---
-// --- MÉTODO DE SUSCRIPCIÓN COMPLETO Y OPTIMIZADO ---
-  useEffect(() => {
-    // 1. Validamos que tengamos el ID del local antes de intentar conectar
-    if (!establishmentId) {
-      console.warn("⚠️ Esperando establishmentId para conectar Realtime...");
-      return;
-    }
+// --- SUSCRIPCIÓN DE MENSAJES (VERSIÓN FINAL OPTIMIZADA PARA UP-T) ---
+useEffect(() => {
+  // 1. Validación de seguridad inicial
+  if (!establishmentId) {
+    console.warn("⚠️ [Up-T] Esperando ID del local para conectar Realtime...");
+    return;
+  }
 
-    console.log(`📡 Sintonizando mensajes para el local: ${establishmentId}`);
+  console.log(`📡 Escuchando cambios en tiempo real para el local: ${establishmentId}`);
 
-    // 2. Creamos el canal único para este local
-    const channel = supabase
-      .channel(`tv-messages-${establishmentId}`) 
-      .on(
-        'postgres_changes', 
-        { 
-          event: 'INSERT', // Solo nos interesan mensajes nuevos
-          schema: 'public', 
-          table: 'screen_messages',
-          // Filtro de servidor: Supabase solo nos envía lo que pertenece a este ID
-          filter: `establishment_id=eq.${establishmentId}` 
-        }, 
-        (payload) => {
-            const data = payload.new;
-            console.log("📩 Datos recibidos de la DB:", data);
+  // 2. Creamos un canal único por local para evitar interferencias
+  const channel = supabase
+    .channel(`tv-messages-realtime-${establishmentId}`) 
+    .on(
+      'postgres_changes', 
+      { 
+        // Escuchamos UPDATE porque el mensaje cambia de 'pending' a 'approved'
+        // También dejamos INSERT por si creas mensajes aprobados directamente
+        event: '*', 
+        schema: 'public', 
+        table: 'screen_messages',
+        filter: `establishment_id=eq.${establishmentId}` 
+      }, 
+      (payload) => {
+        const data = payload.new;
+        console.log("📩 Evento recibido de la DB:", payload.eventType, data);
 
-            // 3. DOBLE VALIDACIÓN (Seguridad extra)
-            // Verificamos manualmente que el ID coincida y el estado sea 'approved'
-            const isMyLocal = String(data.establishment_id) === String(establishmentId);
-            const isApproved = data.status === 'approved';
+        // 3. Validaciones de negocio
+        if (!data) return;
+        const isMyLocal = String(data.establishment_id) === String(establishmentId);
+        const isApproved = data.status === 'approved';
 
-            if (data && isMyLocal && isApproved) {
-                console.log("✨ Mensaje validado con éxito. Agregando a la cola...");
-                
-                // Creamos el objeto del mensaje para la cola
-                const newMsg = { 
-                    id: data.id, 
-                    text: data.text, 
-                    author: data.author 
-                };
+        if (isMyLocal && isApproved) {
+          console.log("✨ Mensaje aprobado detectado. Procesando...");
 
-                // Lo añadimos a la cola de mensajes
-                setMessageQueue((prev) => [...prev, newMsg]);
-            } else {
-                console.log("🚫 Mensaje descartado: No aprobado o ID incorrecto.");
+          // 4. Actualizamos la cola de mensajes de forma segura
+          setMessageQueue((prev) => {
+            // Evitamos duplicados: Si el ID ya existe en la cola, no lo agregamos
+            const alreadyInQueue = prev.some(m => m.id === data.id);
+            if (alreadyInQueue) {
+              console.log("⏭️ El mensaje ya estaba en la cola, ignorando duplicado.");
+              return prev;
             }
-        }
-      )
-      .subscribe((status) => {
-        // Log para saber si la conexión está viva en la consola
-        console.log(`🔌 Estado de la conexión: ${status}`);
-        
-        if (status === 'CHANNEL_ERROR') {
-          console.error("❌ Error crítico: Verifica la réplica de la tabla en Supabase.");
-        }
-      });
 
-    // 4. Limpieza: Cerramos el canal cuando el componente se destruye
-    return () => { 
-      console.log("🔌 Cerrando conexión de mensajes...");
-      supabase.removeChannel(channel); 
-    };
-  }, [establishmentId]); // Se reinicia solo si el ID del local cambia
+            const newMsg = { 
+              id: data.id, 
+              text: data.text, 
+              author: data.author || "Anónimo" 
+            };
+
+            return [...prev, newMsg];
+          });
+        } else {
+          console.log("🚫 Cambio descartado: El estado no es 'approved' o el ID no coincide.");
+        }
+      }
+    )
+    .subscribe((status) => {
+      console.log(`🔌 Estado de la conexión Realtime: ${status}`);
+      
+      if (status === 'CHANNEL_ERROR') {
+        console.error("❌ Error de suscripción. Recuerda ejecutar: ALTER TABLE screen_messages REPLICA IDENTITY FULL;");
+      }
+    });
+
+  // 5. Cleanup: Cerramos el socket al desmontar el componente
+  return () => { 
+    console.log("🔌 Cerrando conexión de mensajes...");
+    supabase.removeChannel(channel); 
+  };
+}, [establishmentId]); // Solo se reinicia si cambias de local
 
   useEffect(() => {
     if (!displayMessage && messageQueue.length > 0) {
