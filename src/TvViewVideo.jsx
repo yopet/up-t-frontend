@@ -36,7 +36,7 @@ export default function TvViewVideo({
   onTrackEnd, 
   volume = 50, 
   ads = [],
-  restaurantId // Añadido para filtrar mensajes por local
+  restaurantId 
 }) {
   const hasQueue = queue.length > 0;
   const safeIdx = hasQueue ? Math.min(currentIdx, queue.length - 1) : 0;
@@ -53,7 +53,6 @@ export default function TvViewVideo({
   const [showAd, setShowAd] = useState(false);
   const [currentAd, setCurrentAd] = useState(null);
 
-  // Estados para la nueva lógica de mensajes aprobados
   const [displayMessage, setDisplayMessage] = useState(null);
   const [messageQueue, setMessageQueue] = useState([]);
 
@@ -61,42 +60,29 @@ export default function TvViewVideo({
   const volumeRef = useRef(volume);
   const startedRef = useRef(started);
   const adVideoRef = useRef(null);
+  const lastVideoIdRef = useRef(null); // NUEVO: Para evitar reinicios si el ID no cambia
 
   useEffect(() => { onTrackEndRef.current = onTrackEnd; }, [onTrackEnd]);
   useEffect(() => { volumeRef.current = volume; }, [volume]);
   useEffect(() => { startedRef.current = started; }, [started]);
 
-  // 1. SUSCRIPCIÓN REALTIME A SUPABASE
   useEffect(() => {
     const channel = supabase
       .channel('screen-messages')
       .on(
         'postgres_changes', 
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'screen_messages',
-          filter: `status=eq.approved` 
-        }, 
+        { event: 'UPDATE', schema: 'public', table: 'screen_messages', filter: `status=eq.approved` }, 
         (payload) => {
-            // Solo procesar si pertenece a este restaurante
             if (payload.new.restaurant_id === restaurantId) {
-                const newMsg = {
-                    id: payload.new.id,
-                    text: payload.new.text,
-                    author: payload.new.author
-                };
+                const newMsg = { id: payload.new.id, text: payload.new.text, author: payload.new.author };
                 setMessageQueue((prev) => [...prev, newMsg]);
             }
         }
       )
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [restaurantId]);
 
-  // 2. CONTROLADOR DE VISUALIZACIÓN DE MENSAJES (Cola)
-  // Saca el siguiente mensaje de la cola si no hay uno en pantalla
   useEffect(() => {
     if (!displayMessage && messageQueue.length > 0) {
       const nextMsg = messageQueue[0];
@@ -105,7 +91,6 @@ export default function TvViewVideo({
     }
   }, [displayMessage, messageQueue]);
 
-  // Maneja el tiempo de vida del mensaje activo
   useEffect(() => {
     if (displayMessage) {
       const timer = setTimeout(() => {
@@ -116,20 +101,15 @@ export default function TvViewVideo({
     }
   }, [displayMessage]);
 
-  // Lógica de anuncios
   useEffect(() => {
     if (ads.length > 0 && currentIdx > 0) {
       const matchingAds = ads.filter(ad => currentIdx % ad.frequency === 0);
-      
       if (matchingAds.length > 0) {
         const randomIndex = Math.floor(Math.random() * matchingAds.length);
         const activeAd = matchingAds[randomIndex];
-
         setCurrentAd(activeAd);
         setShowAd(true);
-
         if (player && player.pauseVideo) player.pauseVideo();
-
         const timer = setTimeout(() => {
           setShowAd(false);
           setCurrentAd(null);
@@ -141,9 +121,7 @@ export default function TvViewVideo({
   }, [currentIdx, ads, player]);
 
   useEffect(() => {
-    if (adVideoRef.current) {
-        adVideoRef.current.volume = volume / 100;
-    }
+    if (adVideoRef.current) { adVideoRef.current.volume = volume / 100; }
   }, [volume, showAd]);
 
   useEffect(() => {
@@ -178,12 +156,18 @@ export default function TvViewVideo({
     });
   };
 
+  // --- LÓGICA DE REPRODUCCIÓN REFORZADA ---
   useEffect(() => {
     if (!player || !track.youtubeId || track.youtubeId === "") return;
+
+    // ESCUDO: Si el ID de YouTube es el mismo que ya está cargado, NO reiniciamos
+    if (lastVideoIdRef.current === track.youtubeId) return;
+
     player.mute();
     try {
         player.loadVideoById(track.youtubeId);
         player.playVideo();
+        lastVideoIdRef.current = track.youtubeId; // Actualizamos la referencia
     } catch (err) { console.error(err); }
 
     if (startedRef.current) {
@@ -193,7 +177,7 @@ export default function TvViewVideo({
       }, 800);
       return () => clearTimeout(timer);
     }
-  }, [track.youtubeId, player, safeIdx]);
+  }, [track.youtubeId, player]); // Quitamos safeIdx para que solo reaccione al ID
 
   useEffect(() => {
     if (player && player.setVolume) {
@@ -257,7 +241,6 @@ export default function TvViewVideo({
               </div>
             )}
 
-            {/* CAPA DE MENSAJE DINÁMICO DESDE SUPABASE */}
             {displayMessage && (
                 <div style={{ 
                     position: "absolute", inset: 0, zIndex: 100, display: "flex", flexDirection: "column", 

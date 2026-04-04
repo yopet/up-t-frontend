@@ -35,6 +35,7 @@ export default function App() {
   const [queue, setQueue] = useState([]);
   const [ads, setAds] = useState([]); 
   const [currentIdx, setCurrentIdx] = useState(0);
+  const [currentTrackId, setCurrentTrackId] = useState(null); // NUEVO: Para no perder la canción sonando
   const [volume, setVolume] = useState(50);
   const [currentMessage, setCurrentMessage] = useState(null);
   const [messageAuthor, setMessageAuthor] = useState(null);
@@ -56,12 +57,23 @@ export default function App() {
       duration: rawDuration ? formatDurationText(rawDuration) : "",
       color: song.color ?? item.color ?? ACCENT_COLORS[Math.abs(item.id?.split('-').length || 0) % ACCENT_COLORS.length],
       isApproved: item.is_approved ?? true,
+      is_cliente: item.is_cliente ?? false,
       img: song.img ?? song.img_url ?? item.img ?? item.img_url ?? "https://picsum.photos/seed/default/600/600",
       album: song.album ?? item.album ?? "Single",
       qr: song.qr ?? item.qr ?? SCAN_URL,
       youtubeId,
     };
   }, []);
+
+  // NUEVO: Efecto para sincronizar el índice cuando la cola cambia (prioridad clientes)
+  useEffect(() => {
+    if (currentTrackId && queue.length > 0) {
+      const newIdx = queue.findIndex(track => track.queueRowId === currentTrackId);
+      if (newIdx !== -1 && newIdx !== currentIdx) {
+        setCurrentIdx(newIdx);
+      }
+    }
+  }, [queue, currentTrackId, currentIdx]);
 
   const updateAppState = useCallback(async (updates) => {
     const { error } = await supabase
@@ -106,6 +118,7 @@ export default function App() {
     const { data, error } = await supabase
       .from("queue")
       .select("*, songs_repository(*)")
+      .order("is_cliente", { ascending: false }) 
       .order("requested_at", { ascending: true })
       .order("id", { ascending: true });
 
@@ -161,12 +174,17 @@ export default function App() {
       .insert({ 
         song_id: repositoryId, 
         requested_at: new Date().toISOString(),
-        is_approved: forceApprove || autoPlay
+        is_approved: forceApprove || autoPlay,
+        is_cliente: song.is_cliente || false 
       })
       .select("*, songs_repository(*)")
       .maybeSingle();
 
-    if (error) return null;
+    if (error) {
+      console.error("Error insertando en queue:", error);
+      return null;
+    }
+    
     return data ? normalizeQueueItem(data) : null;
   }, [persistSongRepository, autoPlay, normalizeQueueItem]);
 
@@ -187,8 +205,6 @@ export default function App() {
         if (data.current_idx !== undefined) setCurrentIdx(data.current_idx);
         if (data.is_playing !== undefined) setIsPlaying(data.is_playing);
         if (data.auto_play !== undefined) setAutoPlay(data.auto_play);
-        if (data.current_message !== undefined) setCurrentMessage(data.current_message);
-        if (data.message_author !== undefined) setMessageAuthor(data.message_author);
       }
     };
 
@@ -204,8 +220,6 @@ export default function App() {
           if (typeof record.current_idx === "number") setCurrentIdx(record.current_idx);
           if (typeof record.is_playing === "boolean") setIsPlaying(record.is_playing);
           if (typeof record.auto_play === "boolean") setAutoPlay(record.auto_play);
-          if (record.current_message !== undefined) setCurrentMessage(record.current_message);
-          if (record.message_author !== undefined) setMessageAuthor(record.message_author);
         }
       ).subscribe();
 
@@ -219,7 +233,7 @@ export default function App() {
     };
   }, [fetchQueue, fetchAds]);
 
-  // Temporizador para limpiar mensajes en pantalla
+  // Temporizador para limpiar mensajes
   useEffect(() => {
     if (currentMessage) {
       const timer = setTimeout(() => {
@@ -231,7 +245,7 @@ export default function App() {
     }
   }, [currentMessage, updateAppState]);
 
-  // --- HANDLERS ---
+  // --- HANDLERS MODIFICADOS ---
   const handleSongRequest = useCallback(async (song, forceApprove = false) => {
     if (queue.some((s) => s.id === song.id)) return;
     const newEntry = await addQueueRow(song, forceApprove);
@@ -239,13 +253,31 @@ export default function App() {
     setQueue((prev) => prev.some((s) => s.id === newEntry.id) ? prev : [...prev, newEntry]);
   }, [addQueueRow, queue]);
 
+  const handlePlayNow = useCallback((idx) => {
+    const song = queue[idx];
+    if (song) {
+      setCurrentIdx(idx);
+      setCurrentTrackId(song.queueRowId); // Guardamos el ID único
+      updateAppState({ current_idx: idx });
+    }
+  }, [queue, updateAppState]);
+
+  const handleTrackEnd = useCallback(() => {
+    const nextIdx = currentIdx + 1;
+    if (nextIdx < queue.length) {
+      const nextSong = queue[nextIdx];
+      setCurrentIdx(nextIdx);
+      setCurrentTrackId(nextSong.queueRowId); // Guardamos el ID único
+      updateAppState({ current_idx: nextIdx });
+    }
+  }, [currentIdx, queue, updateAppState]);
+
   const handleRemoveFromQueue = useCallback(async (idx) => {
     let removedItem = queue[idx];
     if (removedItem?.queueRowId) {
       await supabase.from("queue").delete().eq("id", removedItem.queueRowId);
     }
-    if (currentIdx >= idx && currentIdx > 0) setCurrentIdx((prev) => prev - 1);
-  }, [currentIdx, queue]);
+  }, [queue]);
 
   const handleClearQueue = useCallback(async () => {
     const { error } = await supabase.from("queue").delete().not("id", "is", null);
@@ -259,30 +291,16 @@ export default function App() {
     await supabase.from("queue").update({ is_approved: true, requested_at: new Date().toISOString() }).eq("id", queueRowId);
   }, []);
 
-  const handlePlayNow = useCallback((idx) => {
-    setCurrentIdx(idx);
-    updateAppState({ current_idx: idx });
-  }, [updateAppState]);
-
   const handleVolumeChange = useCallback((value) => {
     setVolume(value);
     updateAppState({ volume: value });
   }, [updateAppState]);
-
-  const handleTrackEnd = useCallback(() => {
-    const nextIdx = currentIdx + 1;
-    if (nextIdx < queue.length) {
-      updateAppState({ current_idx: nextIdx });
-      setCurrentIdx(nextIdx);
-    }
-  }, [currentIdx, queue.length, updateAppState]);
 
   const handleToggleAutoPlay = useCallback((val) => {
     setAutoPlay(val);
     updateAppState({ auto_play: val });
   }, [updateAppState]);
 
-  // Función para aprobar mensajes desde AdminView
   const handleApproveMessage = useCallback(async (msg) => {
     updateAppState({ 
       current_message: msg.text, 

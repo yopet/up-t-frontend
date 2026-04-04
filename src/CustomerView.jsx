@@ -131,7 +131,6 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
     setAdded(new Set(queue.map((song) => song.id)));
   }, [queue]);
 
-  // Sugerencias con JSONP para evitar bloqueos de CORS y errores de proxy
   useEffect(() => {
     const q = query.trim();
     if (q.length < 3) { setSuggestions([]); return; }
@@ -244,7 +243,9 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
       return;
     }
 
-    if (onSongRequest) onSongRequest(track);
+    // Enviamos la canción marcando explícitamente que viene de un cliente
+    if (onSongRequest) onSongRequest({ ...track, is_cliente: true });
+    
     localStorage.setItem("last_song_request", now.toString());
     setAdded((s) => new Set([...s, track.id]));
     setToast(`"${track.title}" agregada a la cola`);
@@ -252,6 +253,18 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
 
   const handleSendMsg = async () => {
     if (!msgText.trim()) return;
+
+    const lastMsg = localStorage.getItem("last_message_sent");
+    const now = Date.now();
+    const cooldownMs = COOLDOWN_MINUTES * 60 * 1000;
+
+    if (lastMsg && (now - parseInt(lastMsg)) < cooldownMs) {
+      const remainingMs = cooldownMs - (now - parseInt(lastMsg));
+      const remainingMin = Math.ceil(remainingMs / 60000);
+      setToast(`⏳ Espera ${remainingMin} min para enviar otro`);
+      return;
+    }
+
     setSendingMsg(true);
     try {
       const { error } = await supabase
@@ -263,6 +276,7 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
         }]);
       if (error) throw error;
       setToast("Mensaje enviado a moderación ✨");
+      localStorage.setItem("last_message_sent", now.toString());
       setMsgText("");
       setShowMsgModal(false);
     } catch (e) {
@@ -386,7 +400,6 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
         </div>
       )}
 
-      {/* COLA DE REPRODUCCIÓN FILTRADA */}
       {queue.length > 0 && (
         <div style={{ margin: "22px 14px 0" }}>
           <div style={{ fontSize: 10, color: muted2, fontWeight: 600, marginBottom: 10 }}>

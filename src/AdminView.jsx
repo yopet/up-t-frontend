@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from "./lib/supabase";
 
-// ─── CONFIGURACIÓN DE LLAVES YOUTUBE ────────────────────────────────────────
+// ─── CONFIGURACIÓN DE LLAVES YOUTUBE ─────────────────────────────────────────
 const API_KEYS = [
   import.meta.env.VITE_YT_KEY_1,
   import.meta.env.VITE_YT_KEY_2,
@@ -42,7 +42,7 @@ function isQuotaError(data) {
   );
 }
 
-// ─── UTILIDADES ──────────────────────────────────────────────────────────────
+// ─── UTILIDADES ───────────────────────────────────────────────────────────────
 function formatDuration(iso) {
   if (!iso) return "";
   const match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
@@ -55,21 +55,62 @@ function formatDuration(iso) {
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-// ─── ICONOS ──────────────────────────────────────────────────────────────────
-const IconTrash = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
-const IconCheck = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>;
-const IconSearch = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>;
-const IconVolume = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 5L6 9H2v6h4l5 4V5z"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>;
-const IconTv = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>;
+function timeAgo(dateStr) {
+  if (!dateStr) return "";
+  const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
+  if (diff < 60) return `hace ${diff}s`;
+  if (diff < 3600) return `hace ${Math.floor(diff / 60)}min`;
+  return `hace ${Math.floor(diff / 3600)}h`;
+}
+
+// ─── ICONOS ───────────────────────────────────────────────────────────────────
+const IconTrash = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+  </svg>
+);
+const IconCheck = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
+const IconSearch = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.5" y2="16.5" />
+  </svg>
+);
+const IconVolume = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M11 5L6 9H2v6h4l5 4V5z" />
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+  </svg>
+);
+const IconTv = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+    <line x1="8" y1="21" x2="16" y2="21" />
+    <line x1="12" y1="17" x2="12" y2="21" />
+  </svg>
+);
 const IconAd = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
     <line x1="7" y1="7" x2="7.01" y2="7" />
   </svg>
 );
-const IconPlaySmall = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>;
-const IconMessage = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>;
+const IconPlaySmall = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M8 5v14l11-7z" />
+  </svg>
+);
+const IconMessage = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);
 
+// ─── BADGE DE NUEVA CANCIÓN ───────────────────────────────────────────────────
 function NewBadge({ track, onDone }) {
   useEffect(() => {
     const t = setTimeout(onDone, 4000);
@@ -79,24 +120,26 @@ function NewBadge({ track, onDone }) {
   return (
     <div style={{
       position: "fixed", top: 24, right: 24, zIndex: 500,
-      background: "rgba(29,185,84,0.12)", border: "1px solid rgba(29,185,84,0.4)",
-      backdropFilter: "blur(16px)", borderRadius: "14px",
-      padding: "12px 16px", display: "flex", alignItems: "center", gap: 12,
-      animation: "badgeIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
-      boxShadow: "0 8px 32px rgba(0,0,0,0.5)", maxWidth: 280, color: "#fff"
+      background: "rgba(29,185,84,0.10)", border: "0.5px solid rgba(29,185,84,0.35)",
+      borderRadius: "12px", padding: "12px 16px",
+      display: "flex", alignItems: "center", gap: 12,
+      animation: "badgeIn 0.4s cubic-bezier(0.34,1.56,0.64,1)",
+      maxWidth: 280, color: "#fff"
     }}>
-      <img src={track.img} alt="" style={{ width: 42, height: 42, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
+      <img src={track.img} alt="" style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
       <div>
-        <div style={{ fontSize: 10, color: "#1DB954", fontWeight: 700, letterSpacing: "0.12em", marginBottom: 3 }}>♪ NUEVA SOLICITUD</div>
-        <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>{track.title}</div>
-        <div style={{ fontSize: 11, color: "#b3b3b3", marginTop: 1 }}>{track.artist}</div>
+        <div style={{ fontSize: 9, color: "#1DB954", fontWeight: 700, letterSpacing: "0.12em", marginBottom: 3 }}>♪ NUEVA SOLICITUD</div>
+        <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 190 }}>{track.title}</div>
+        <div style={{ fontSize: 11, color: "#777", marginTop: 2 }}>{track.artist}</div>
       </div>
     </div>
   );
 }
 
-export default function AdminView({ 
-  queue = [], currentIdx = 0, onRemove, onPlay, onAddSong, onClearQueue, onApprove, autoPlay, onToggleAutoPlay, volume = 50, onVolumeChange,
+// ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
+export default function AdminView({
+  queue = [], currentIdx = 0, onRemove, onPlay, onAddSong, onClearQueue, onApprove,
+  autoPlay, onToggleAutoPlay, volume = 50, onVolumeChange,
   ads = [], onAddAd, onRemoveAd, onApproveMessage
 }) {
   const [query, setQuery] = useState("");
@@ -108,22 +151,24 @@ export default function AdminView({
   const prevQueueLen = useRef(queue.length);
   const [localVol, setLocalVol] = useState(volume);
   const [lastNonZeroVolume, setLastNonZeroVolume] = useState(volume > 0 ? volume : 50);
-
+  const [rejectedCount, setRejectedCount] = useState(0);
+  const [rejectedMessagesCount, setRejectedMessagesCount] = useState(0);
+  const [approvedMessagesCount, setApprovedMessagesCount] = useState(0);
   const [showAdModal, setShowAdModal] = useState(false);
   const [newAd, setNewAd] = useState({ title: '', image_url: '', frequency: 3 });
+  const [adFile, setAdFile] = useState(null);
+  const [uploadingAd, setUploadingAd] = useState(false);
   const [screenMessages, setScreenMessages] = useState([]);
 
   useEffect(() => { setLocalVol(volume); }, [volume]);
 
-  // ─── LÓGICA DE MENSAJES EN TIEMPO REAL ────────────────────────────────────
+  // Mensajes en tiempo real
   useEffect(() => {
     if (!supabase) return;
     const fetchMessages = async () => {
       const { data } = await supabase
-        .from('screen_messages')
-        .select('*')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+        .from('screen_messages').select('*')
+        .eq('status', 'pending').order('created_at', { ascending: false });
       if (data) setScreenMessages(data);
     };
     fetchMessages();
@@ -134,8 +179,7 @@ export default function AdminView({
         const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
         audio.volume = 0.2;
         audio.play().catch(() => {});
-      })
-      .subscribe();
+      }).subscribe();
     return () => supabase.removeChannel(channel);
   }, []);
 
@@ -144,10 +188,19 @@ export default function AdminView({
     setScreenMessages(prev => prev.filter(m => m.id !== id));
     if (supabase) {
       await supabase.from('screen_messages').update({ status: newStatus }).eq('id', id);
-      if (newStatus === 'approved' && msg && onApproveMessage) {
-        onApproveMessage(msg);
+      if (newStatus === 'approved') {
+        setApprovedMessagesCount(prev => prev + 1);
+        if (msg && onApproveMessage) onApproveMessage(msg);
+      } else if (newStatus === 'rejected') {
+        setRejectedMessagesCount(prev => prev + 1);
       }
     }
+  };
+
+  const handleRemoveWithStats = (idx) => {
+    const track = queue[idx];
+    if (track?.is_cliente) setRejectedCount(prev => prev + 1);
+    onRemove(idx);
   };
 
   useEffect(() => {
@@ -160,87 +213,58 @@ export default function AdminView({
     prevQueueLen.current = queue.length;
   }, [queue]);
 
-  // --- LÓGICA DE SUGERENCIAS (getSuggestions) CON PROXY ANTI-CORS ---
- // Sustituye el useEffect de sugerencias (línea 143 aprox.) por este:
-useEffect(() => {
-  const q = query.trim();
-  if (q.length < 3) { setSuggestions([]); return; }
+  // Sugerencias JSONP
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 3) { setSuggestions([]); return; }
+    const timeout = setTimeout(() => {
+      const cbName = 'gsc_' + Math.random().toString(36).substr(2, 9);
+      window[cbName] = (data) => {
+        if (data && data[1]) setSuggestions(data[1].map(i => i[0]));
+        delete window[cbName];
+        document.getElementById(cbName)?.remove();
+      };
+      const s = document.createElement('script');
+      s.id = cbName;
+      s.src = `https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&q=${encodeURIComponent(q)}&callback=${cbName}`;
+      document.body.appendChild(s);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [query]);
 
-  const timeout = setTimeout(() => {
-    // Definimos el nombre de la función global que recibirá la respuesta
-    const callbackName = 'googleSuggestCallback_' + Math.random().toString(36).substr(2, 9);
-    
-    window[callbackName] = (data) => {
-      if (data && data[1]) {
-        setSuggestions(data[1].map(item => item[0]));
-      }
-      // Limpieza: eliminamos el script y la función global después de usarla
-      delete window[callbackName];
-      const script = document.getElementById(callbackName);
-      if (script) script.remove();
-    };
-
-    const script = document.createElement('script');
-    script.id = callbackName;
-    // Usamos el parámetro callback para JSONP, esto ignora los CORS
-    script.src = `https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&q=${encodeURIComponent(q)}&callback=${callbackName}`;
-    document.body.appendChild(script);
-  }, 300);
-
-  return () => clearTimeout(timeout);
-}, [query]);
-
-  // --- LÓGICA DE BÚSQUEDA ---
   const performSearch = async (searchTerm) => {
-    const trimmedQuery = searchTerm.trim();
-    if (trimmedQuery.length < 3) return;
-
-    setSearching(true);
-    setError("");
-    setSuggestions([]); 
-
+    const q = searchTerm.trim();
+    if (q.length < 3) return;
+    setSearching(true); setError(""); setSuggestions([]);
     const searchWithKey = async (key) => {
-      const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=6&q=${encodeURIComponent(trimmedQuery)}&key=${key}`);
-      return res.json();
+      const r = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=6&q=${encodeURIComponent(q)}&key=${key}`);
+      return r.json();
     };
-
     try {
-      let currentKey = getAvailableKey();
-      if (!currentKey) { setError("Cuota agotada."); setSearching(false); return; }
-      
-      let searchData = await searchWithKey(currentKey);
-      while (isQuotaError(searchData)) {
-        markKeyExhausted(currentKey);
-        currentKey = getAvailableKey();
-        if (!currentKey) { setError("Cuota agotada."); setSearching(false); return; }
-        searchData = await searchWithKey(currentKey);
+      let key = getAvailableKey();
+      if (!key) { setError("Cuota agotada."); setSearching(false); return; }
+      let data = await searchWithKey(key);
+      while (isQuotaError(data)) {
+        markKeyExhausted(key); key = getAvailableKey();
+        if (!key) { setError("Cuota agotada."); setSearching(false); return; }
+        data = await searchWithKey(key);
       }
-
-      if (searchData.error) { setError(searchData.error.message); setSearching(false); return; }
-      
-      const items = searchData.items || [];
-      const videoIds = items.map((i) => i.id.videoId).join(",");
-      const detailRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds}&key=${currentKey}`);
-      const detailData = await detailRes.json();
-      
-      const durationMap = {};
-      (detailData.items || []).forEach((v) => {
-        durationMap[v.id] = formatDuration(v.contentDetails.duration);
-      });
-
-      setResults(items.map((item) => ({
+      if (data.error) { setError(data.error.message); setSearching(false); return; }
+      const items = data.items || [];
+      const ids = items.map(i => i.id.videoId).join(",");
+      const det = await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${ids}&key=${key}`)).json();
+      const durMap = {};
+      (det.items || []).forEach(v => { durMap[v.id] = formatDuration(v.contentDetails.duration); });
+      setResults(items.map(item => ({
         id: item.id.videoId,
         title: item.snippet.title,
         artist: item.snippet.channelTitle.replace(/ - Topic$| Music$/i, ""),
         img: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
-        duration: durationMap[item.id.videoId] || "",
+        duration: durMap[item.id.videoId] || "",
         youtubeId: item.id.videoId,
       })));
-    } catch (e) {
-      setError("Error de conexión");
-    } finally {
-      setSearching(false);
-    }
+    } catch { setError("Error de conexión"); }
+    finally { setSearching(false); }
   };
 
   const handleVolChange = (e) => {
@@ -251,119 +275,322 @@ useEffect(() => {
   };
 
   const toggleMute = () => {
-    if (localVol > 0) {
-      setLastNonZeroVolume(localVol);
-      handleVolChange({ target: { value: 0 } });
-    } else {
-      handleVolChange({ target: { value: lastNonZeroVolume } });
-    }
+    if (localVol > 0) { setLastNonZeroVolume(localVol); handleVolChange({ target: { value: 0 } }); }
+    else { handleVolChange({ target: { value: lastNonZeroVolume } }); }
+  };
+
+  const handleSaveAdInternal = async () => {
+    if (!newAd.title || (!adFile && !newAd.image_url)) return;
+    setUploadingAd(true);
+    try {
+      let finalUrl = newAd.image_url;
+      if (adFile) {
+        const ext = adFile.name.split('.').pop();
+        const filePath = `ad_images/${Math.random().toString(36).substring(2)}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('ads').upload(filePath, adFile);
+        if (upErr) throw upErr;
+        finalUrl = supabase.storage.from('ads').getPublicUrl(filePath).data.publicUrl;
+      }
+      if (onAddAd) await onAddAd({ ...newAd, image_url: finalUrl });
+      setShowAdModal(false); setNewAd({ title: '', image_url: '', frequency: 3 }); setAdFile(null);
+    } catch (err) { alert("Error al subir anuncio: " + err.message); }
+    finally { setUploadingAd(false); }
   };
 
   const approvedQueue = queue.filter(s => s.isApproved);
-  const pendingRequests = queue.filter(s => !s.isApproved);
-  const panelStyle = { background: '#181818', borderRadius: '12px', padding: '20px', border: '1px solid #282828' };
-  const headerStyle = { fontSize: '11px', color: '#b3b3b3', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '15px', fontWeight: '700' };
-  const actionBtn = { border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s' };
+  const pendingRequests = queue.filter(s => !s.isApproved).sort((a, b) => {
+    if (a.is_cliente === b.is_cliente) return new Date(a.created_at) - new Date(b.created_at);
+    return a.is_cliente ? -1 : 1;
+  });
 
-  return (
-    <div className="admin-container" style={{ height: '100vh', overflowY: 'auto', background: '#121212', color: '#fff', fontFamily: 'system-ui, sans-serif', boxSizing: 'border-box' }}>
-      
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '12px', height: '12px', background: '#1DB954', borderRadius: '50%', boxShadow: '0 0 10px #1DB954' }}></div>
-          <h1 style={{ fontSize: '22px', fontWeight: '800', margin: 0 }}>UP-T <span style={{ color: '#1DB954' }}>ADMIN</span></h1>
+  // Stats
+  const clientStats = {
+    total: queue.filter(s => s.is_cliente).length + rejectedCount,
+    approved: queue.filter(s => s.is_cliente && s.isApproved).length,
+    pending: queue.filter(s => s.is_cliente && !s.isApproved).length,
+    rejected: rejectedCount,
+  };
+  const messageStats = {
+    total: screenMessages.length + approvedMessagesCount + rejectedMessagesCount,
+    approved: approvedMessagesCount,
+    pending: screenMessages.length,
+    rejected: rejectedMessagesCount,
+  };
+
+  // ─── TOKENS DE ESTILO ────────────────────────────────────────────────────────
+  const C = {
+    bg:       '#0f0f0f',
+    panel:    '#161616',
+    panel2:   '#1c1c1c',
+    border:   '#222',
+    border2:  '#2a2a2a',
+    text:     '#d8d8d8',
+    muted:    '#555',
+    green:    '#1DB954',
+    amber:    '#EF9F27',
+    red:      '#E24B4A',
+    blue:     '#85B7EB',
+  };
+
+  const panel = {
+    background: C.panel,
+    borderRadius: 10,
+    border: `0.5px solid ${C.border}`,
+    padding: '16px',
+  };
+
+  const sectionLabel = {
+    fontSize: 10,
+    color: C.muted,
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    fontWeight: 500,
+    marginBottom: 12,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+  };
+
+  const actionBtn = {
+    border: 'none',
+    borderRadius: 4,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: '0.15s',
+    flexShrink: 0,
+  };
+
+  // ─── SUBCOMPONENTE: STRIP DE STATS ───────────────────────────────────────────
+  const StatsStrip = () => {
+    const colStyle = (accent) => ({
+      display: 'flex',
+      flexDirection: 'column',
+      borderRight: `0.5px solid ${C.border}`,
+    });
+    const titleCell = (label, color) => (
+      <div style={{ padding: '5px 14px', background: '#111', borderBottom: `0.5px solid ${C.border}`, fontSize: 9, color: color || C.muted, letterSpacing: '0.06em' }}>
+        {label}
+      </div>
+    );
+    const valueCell = (val, color, bg) => (
+      <div style={{ padding: '10px 14px', background: bg || C.panel, fontSize: 22, fontWeight: 500, color: color || C.text }}>
+        {val}
+      </div>
+    );
+
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr', border: `0.5px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', marginBottom: 20 }}>
+        {/* GRUPO CANCIONES */}
+        <div>
+          <div style={{ padding: '6px 14px', background: '#0d0d0d', borderBottom: `0.5px solid ${C.border}`, fontSize: 9, color: C.green, letterSpacing: '0.14em', fontWeight: 600 }}>
+            CANCIONES
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
+            <div style={{ ...colStyle() }}>
+              {titleCell('Total')}
+              {valueCell(clientStats.total)}
+            </div>
+            <div style={{ ...colStyle() }}>
+              {titleCell('Aprobadas', C.green)}
+              {valueCell(clientStats.approved, C.green)}
+            </div>
+            <div style={{ ...colStyle() }}>
+              {titleCell('Pendientes', C.amber)}
+              {valueCell(clientStats.pending, C.amber)}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {titleCell('Rechazadas', C.red)}
+              {valueCell(clientStats.rejected, C.red)}
+            </div>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#1a1a1a', padding: '8px 16px', borderRadius: '30px', border: '1px solid #333' }}>
-          <span style={{ fontSize: '11px', fontWeight: '700', color: autoPlay ? '#1DB954' : '#888' }}>
-            {autoPlay ? 'AUTO-PLAY ON' : 'MODERACIÓN ACTIVADA'}
-          </span>
-          <div onClick={() => onToggleAutoPlay(!autoPlay)} style={{ width: '36px', height: '18px', background: autoPlay ? '#1DB954' : '#444', borderRadius: '20px', position: 'relative', cursor: 'pointer', transition: '0.3s' }}>
-            <div style={{ width: '14px', height: '14px', background: '#fff', borderRadius: '50%', position: 'absolute', top: '2px', left: autoPlay ? '20px' : '2px', transition: '0.3s' }} />
-          </div>          
-        </div>        
+        {/* DIVISOR */}
+        <div style={{ background: C.border2 }} />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div style={{ background: '#282828', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', color: '#b3b3b3', border: '1px solid #333' }}>Bogotá • Gastrobar</div>
-          <button onClick={() => window.open('/tvVideo', '_blank')} style={{ background: '#1DB954', color: '#000', border: 'none', padding: '8px 16px', borderRadius: '20px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <IconTv /> ABRIR TV
+        {/* GRUPO MENSAJES */}
+        <div>
+          <div style={{ padding: '6px 14px', background: '#0d0d0d', borderBottom: `0.5px solid ${C.border}`, fontSize: 9, color: C.blue, letterSpacing: '0.14em', fontWeight: 600 }}>
+            MENSAJES
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
+            <div style={{ ...colStyle() }}>
+              {titleCell('Total')}
+              {valueCell(messageStats.total, C.text, '#121212')}
+            </div>
+            <div style={{ ...colStyle() }}>
+              {titleCell('Aprobados', C.blue)}
+              {valueCell(messageStats.approved, C.blue, '#121212')}
+            </div>
+            <div style={{ ...colStyle() }}>
+              {titleCell('Pendientes', C.amber)}
+              {valueCell(messageStats.pending, C.amber, '#121212')}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {titleCell('Rechazados', C.red)}
+              {valueCell(messageStats.rejected, C.red, '#121212')}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── RENDER ───────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ minHeight: '100vh', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: 'system-ui, -apple-system, sans-serif', boxSizing: 'border-box' }}>
+
+      {/* ── HEADER ─────────────────────────────────────────────────────────────── */}
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px', borderBottom: `0.5px solid ${C.border}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 7, height: 7, background: C.green, borderRadius: '50%' }} />
+          <span style={{ fontSize: 15, fontWeight: 500, color: C.text }}>Up-T <span style={{ color: C.green }}>Admin</span></span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#161616', padding: '6px 14px', borderRadius: 8, border: `0.5px solid ${C.border2}` }}>
+          <span style={{ fontSize: 11, color: autoPlay ? C.green : C.muted }}>
+            {autoPlay ? 'Auto-play activo' : 'Moderación activa'}
+          </span>
+          <div
+            onClick={() => onToggleAutoPlay(!autoPlay)}
+            style={{ width: 32, height: 16, background: autoPlay ? C.green : '#333', borderRadius: 10, position: 'relative', cursor: 'pointer', transition: '0.25s', flexShrink: 0 }}
+          >
+            <div style={{ width: 12, height: 12, background: '#fff', borderRadius: '50%', position: 'absolute', top: 2, left: autoPlay ? 18 : 2, transition: '0.25s' }} />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ background: '#161616', padding: '5px 14px', borderRadius: 6, fontSize: 11, color: C.muted, border: `0.5px solid ${C.border2}` }}>
+            Bogotá · Gastrobar
+          </div>
+          <button
+            onClick={() => window.open('/tvVideo', '_blank')}
+            style={{ background: C.green, color: '#000', border: 'none', padding: '6px 14px', borderRadius: 6, fontWeight: 500, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <IconTv /> Abrir TV
           </button>
         </div>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '260px 2fr 1.2fr', gap: '20px', padding: '0 30px 30px' }}>
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ ...panelStyle, borderColor: '#333' }}>
-            <h2 style={{ ...headerStyle, color: '#1DB954', display: 'flex', alignItems: 'center', gap: '8px' }}><IconAd /> Publicidad (Ads)</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {ads.length === 0 ? <div style={{ fontSize: '11px', color: '#555', textAlign: 'center', padding: '20px' }}>No hay anuncios activos</div> : ads.map(ad => (
-                <div key={ad.id} style={{ background: '#222', borderRadius: '8px', padding: '10px', border: '1px solid #333' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <img src={ad.image_url} style={{ width: '35px', height: '35px', borderRadius: '4px', objectFit: 'cover' }} />
+      {/* ── STATS STRIP ──────────────────────────────────────────────────────────── */}
+      <div style={{ padding: '16px 24px 0' }}>
+        <StatsStrip />
+      </div>
+
+      {/* ── GRID PRINCIPAL ───────────────────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '240px minmax(0,2fr) 210px', gap: 14, padding: '0 24px 28px' }}>
+
+        {/* ── COL IZQUIERDA: ADS + MENSAJES ──────────────────────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* PUBLICIDAD */}
+          <div style={panel}>
+            <div style={sectionLabel}><IconAd /><span style={{ color: C.green }}>Publicidad</span></div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {ads.length === 0
+                ? <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '16px 0' }}>Sin anuncios activos</div>
+                : ads.map(ad => (
+                  <div key={ad.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: C.panel2, borderRadius: 7, border: `0.5px solid ${C.border}` }}>
+                    <img src={ad.image_url} style={{ width: 32, height: 32, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '11px', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ad.title}</div>
-                      <div style={{ fontSize: '10px', color: '#1DB954' }}>x {ad.frequency} Temas</div>
+                      <div style={{ fontSize: 11, fontWeight: 500, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ad.title}</div>
+                      <div style={{ fontSize: 9, color: C.green, marginTop: 2 }}>cada {ad.frequency} canciones</div>
                     </div>
-                    <button onClick={() => onRemoveAd(ad.id)} style={{ ...actionBtn, width: 24, height: 24, background: 'transparent', color: '#ff4444', opacity: 0.6 }}><IconTrash /></button>
+                    <button onClick={() => onRemoveAd(ad.id)} style={{ ...actionBtn, width: 24, height: 24, background: 'transparent', color: C.red, opacity: 0.5 }}>
+                      <IconTrash />
+                    </button>
                   </div>
-                </div>
-              ))}
-              <button onClick={() => setShowAdModal(true)} style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px dashed #1DB954', color: '#1DB954', borderRadius: '8px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', marginTop: '10px' }}>+ AGREGAR ANUNCIO</button>
+                ))
+              }
+              <button
+                onClick={() => setShowAdModal(true)}
+                style={{ width: '100%', padding: '8px', background: 'transparent', border: `0.5px dashed ${C.green}`, color: C.green, borderRadius: 7, fontSize: 10, fontWeight: 500, cursor: 'pointer', marginTop: 4 }}
+              >
+                + agregar anuncio
+              </button>
             </div>
           </div>
 
-          <div style={{ ...panelStyle, border: '1px solid #333' }}>
-            <h2 style={{ ...headerStyle, color: '#1DB954', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><IconMessage /> MENSAJES</span>
-              <span style={{ background: '#1DB954', color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '10px' }}>{screenMessages.length}</span>
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '350px', overflowY: 'auto' }}>
-              {screenMessages.length === 0 ? <div style={{ fontSize: '11px', color: '#555', textAlign: 'center', padding: '20px' }}>Sin mensajes nuevos</div> : screenMessages.map(msg => (
-                <div key={msg.id} style={{ background: '#222', borderRadius: '10px', padding: '12px', border: '1px solid #333', borderLeft: '3px solid #1DB954' }}>
-                  <div style={{ fontSize: '13px', marginBottom: '8px', fontStyle: 'italic', color: '#eee' }}>"{msg.text}"</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '10px', color: '#1DB954', fontWeight: 'bold' }}>{msg.author || 'Anon'}</span>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button onClick={() => handleMessageAction(msg.id, 'approved')} style={{ ...actionBtn, width: 26, height: 26, background: '#1DB954', color: '#000' }}><IconCheck /></button>
-                      <button onClick={() => handleMessageAction(msg.id, 'rejected')} style={{ ...actionBtn, width: 26, height: 26, background: 'transparent', color: '#ff4444' }}><IconTrash /></button>
+          {/* MENSAJES */}
+          <div style={panel}>
+            <div style={{ ...sectionLabel, justifyContent: 'space-between' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: C.green }}><IconMessage />Mensajes</span>
+              {screenMessages.length > 0 && (
+                <span style={{ background: C.green, color: '#000', fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 4 }}>
+                  {screenMessages.length}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 340, overflowY: 'auto' }}>
+              {screenMessages.length === 0
+                ? <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '16px 0' }}>Sin mensajes nuevos</div>
+                : screenMessages.map(msg => (
+                  <div key={msg.id} style={{ background: C.panel2, borderLeft: `2px solid ${C.green}`, borderRadius: '0 7px 7px 0', padding: '10px 12px' }}>
+                    <div style={{ fontSize: 12, color: C.text, fontStyle: 'italic', marginBottom: 8 }}>"{msg.text}"</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ fontSize: 10, color: C.green, fontWeight: 500 }}>{msg.author || 'Anon'}</span>
+                        <span style={{ fontSize: 9, color: C.muted, marginLeft: 5 }}>· {timeAgo(msg.created_at)}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 5 }}>
+                        <button
+                          onClick={() => handleMessageAction(msg.id, 'approved')}
+                          style={{ ...actionBtn, background: C.green, color: '#000', fontSize: 10, fontWeight: 500, padding: '3px 10px', borderRadius: 4, width: 'auto', height: 'auto' }}
+                        >
+                          Aprobar
+                        </button>
+                        <button
+                          onClick={() => handleMessageAction(msg.id, 'rejected')}
+                          style={{ ...actionBtn, background: 'transparent', border: `0.5px solid ${C.border2}`, color: C.muted, fontSize: 10, padding: '3px 10px', borderRadius: 4, width: 'auto', height: 'auto' }}
+                        >
+                          Rechazar
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              }
             </div>
           </div>
         </div>
 
-        {/* COLUMNA 2: BUSCADOR MAESTRO */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ ...panelStyle, border: '1px solid #1DB954', position: 'relative' }}>
-            <h2 style={{ ...headerStyle, color: '#1DB954' }}>Buscador Maestro</h2>
-            <div style={{ display: 'flex', background: '#282828', padding: '10px 18px', borderRadius: '30px', alignItems: 'center', gap: '12px' }}>
+        {/* ── COL CENTRO: BUSCADOR + COLA ─────────────────────────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+
+          {/* BUSCADOR */}
+          <div style={{ ...panel, border: `0.5px solid ${C.green}30`, position: 'relative' }}>
+            <div style={{ ...sectionLabel, color: C.green }}>Buscador maestro</div>
+            <div style={{ display: 'flex', background: C.panel2, padding: '9px 14px', borderRadius: 7, alignItems: 'center', gap: 10, border: `0.5px solid ${C.border}` }}>
               <IconSearch />
-              <input 
-                value={query} 
-                onChange={(e) => setQuery(e.target.value)} 
-                onKeyDown={(e) => e.key === 'Enter' && performSearch(query)}
-                placeholder="Escribe el nombre de la canción..." 
-                style={{ flex: 1, background: 'none', border: 'none', color: '#fff', outline: 'none', fontSize: '14px' }} 
+              <input
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && performSearch(query)}
+                placeholder="Escribe el nombre de la canción..."
+                style={{ flex: 1, background: 'none', border: 'none', color: C.text, outline: 'none', fontSize: 13 }}
               />
-              {query && <button onClick={() => { setQuery(""); setResults([]); setSuggestions([]); }} style={{ background: "none", border: "none", color: '#b3b3b3', cursor: "pointer", fontSize: 16 }}>✕</button>}
+              {query && (
+                <button onClick={() => { setQuery(""); setResults([]); setSuggestions([]); }} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 14, lineHeight: 1 }}>✕</button>
+              )}
               {searching && <div className="spinner" />}
             </div>
-            
+
             {query.trim().length > 0 && query.trim().length < 3 && (
-              <div style={{ fontSize: '10px', color: '#1DB954', marginTop: '8px', marginLeft: '12px', fontWeight: '600', opacity: 0.8 }}>Escribe al menos 3 letras para buscar...</div>
+              <div style={{ fontSize: 10, color: C.green, marginTop: 6, marginLeft: 4, opacity: 0.7 }}>Escribe al menos 3 letras…</div>
             )}
+            {error && <div style={{ fontSize: 10, color: C.red, marginTop: 6, marginLeft: 4 }}>{error}</div>}
 
             {suggestions.length > 0 && (
-              <div style={{ position: 'absolute', top: '90px', left: '20px', right: '20px', background: '#282828', borderRadius: '8px', zIndex: 100, boxShadow: '0 10px 25px rgba(0,0,0,0.5)', overflow: 'hidden', border: '1px solid #333' }}>
+              <div style={{ position: 'absolute', top: 78, left: 16, right: 16, background: '#1a1a1a', borderRadius: 7, zIndex: 100, border: `0.5px solid ${C.border2}`, overflow: 'hidden' }}>
                 {suggestions.map((s, idx) => (
-                  <div key={idx} 
+                  <div
+                    key={idx}
                     onClick={() => { setQuery(s); performSearch(s); }}
-                    style={{ padding: '10px 15px', fontSize: '13px', cursor: 'pointer', borderBottom: '1px solid #333', transition: '0.2s' }}
-                    onMouseEnter={(e) => e.target.style.background = '#333'}
-                    onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                    style={{ padding: '9px 14px', fontSize: 12, cursor: 'pointer', borderBottom: `0.5px solid ${C.border}`, color: C.text }}
+                    onMouseEnter={e => e.currentTarget.style.background = C.panel2}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
                     {s}
                   </div>
@@ -371,105 +598,229 @@ useEffect(() => {
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: results.length ? '15px' : '0' }}>
-              {results.map((track) => (
-                <div key={track.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', background: '#282828', borderRadius: '8px' }}>
-                  <img src={track.img} style={{ width: '35px', height: '35px', borderRadius: '4px', objectFit: 'cover' }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '11px', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.title}</div>
-                    <div style={{ fontSize: '9px', color: '#b3b3b3' }}>{track.artist}</div>
+            {results.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14 }}>
+                {results.map(track => (
+                  <div key={track.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', background: C.panel2, borderRadius: 7, border: `0.5px solid ${C.border}`, minWidth: 0 }}>
+                    <img src={track.img} style={{ width: 32, height: 32, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 500, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.title}</div>
+                      <div style={{ fontSize: 9, color: C.muted, marginTop: 1 }}>{track.artist}</div>
+                    </div>
+                    <button
+                      onClick={() => { onAddSong(track); setQuery(""); setResults([]); }}
+                      style={{ ...actionBtn, background: C.green, color: '#000', width: 26, height: 26, fontSize: 16, flexShrink: 0 }}
+                    >
+                      +
+                    </button>
                   </div>
-                  <button onClick={() => { onAddSong(track); setQuery(""); setResults([]); }} style={{ ...actionBtn, background: '#1DB954', color: '#000', width: 28, height: 28 }}>+</button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div style={panelStyle}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-              <h2 style={headerStyle}>Cola de Reproducción ({approvedQueue.length})</h2>
+          {/* COLA DE REPRODUCCIÓN */}
+          <div style={panel}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <span style={sectionLabel}>
+                Cola aprobada <span style={{ color: C.muted, marginLeft: 4 }}>({approvedQueue.length})</span>
+              </span>
               {queue.length > 0 && (
-                <button onClick={() => window.confirm("¿Vaciar todas las canciones?") && onClearQueue()} style={{ background: 'transparent', border: '1px solid #ff4444', color: '#ff4444', padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: '700', cursor: 'pointer' }}>VACIAR LISTA</button>
+                <button
+                  onClick={() => window.confirm("¿Vaciar todas las canciones?") && onClearQueue()}
+                  style={{ background: 'transparent', border: `0.5px solid #3a1a1a`, color: C.red, padding: '3px 10px', borderRadius: 4, fontSize: 9, fontWeight: 500, cursor: 'pointer' }}
+                >
+                  Vaciar lista
+                </button>
               )}
             </div>
-            {approvedQueue.map((song, idx) => (
-              <div key={song.queueRowId} style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '10px 0', borderBottom: '1px solid #282828', background: idx === currentIdx ? '#1db95408' : 'transparent' }}>
-                <div style={{ width: '20px', fontSize: '11px', color: idx === currentIdx ? '#1DB954' : '#555', fontWeight: 'bold' }}>{idx === currentIdx ? '▶' : idx + 1}</div>
-                <img src={song.img} style={{ width: '35px', height: '35px', borderRadius: '4px' }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: '600', fontSize: '13px', color: idx === currentIdx ? '#1DB954' : '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</div>
-                  <div style={{ color: '#b3b3b3', fontSize: '11px' }}>{song.artist}</div>
+            {approvedQueue.length === 0
+              ? <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '20px 0' }}>Cola vacía</div>
+              : approvedQueue.map((song, idx) => (
+                <div
+                  key={song.queueRowId}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 6px',
+                    borderBottom: `0.5px solid ${C.border}`,
+                    background: idx === currentIdx ? '#1DB95408' : 'transparent',
+                    borderLeft: song.is_cliente ? `2px solid ${C.green}` : '2px solid transparent',
+                    minWidth: 0,
+                  }}
+                >
+                  <div style={{ width: 16, fontSize: 10, color: idx === currentIdx ? C.green : C.muted, textAlign: 'center', flexShrink: 0 }}>
+                    {idx === currentIdx ? '▶' : idx + 1}
+                  </div>
+                  <img src={song.img} style={{ width: 32, height: 32, borderRadius: 4, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 500, color: idx === currentIdx ? C.green : C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {song.title}
+                      </span>
+                      {idx === currentIdx && (
+                        <span style={{ background: C.green, color: '#000', fontSize: 8, fontWeight: 600, padding: '1px 5px', borderRadius: 3, flexShrink: 0 }}>ahora</span>
+                      )}
+                      {song.is_cliente && idx !== currentIdx && (
+                        <span style={{ background: '#1DB95418', color: C.green, fontSize: 8, fontWeight: 600, padding: '1px 5px', borderRadius: 3, flexShrink: 0 }}>cliente</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>{song.artist}</div>
+                  </div>
+                  {song.duration && (
+                    <span style={{ fontSize: 10, color: '#444', flexShrink: 0 }}>{song.duration}</span>
+                  )}
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <button onClick={() => onPlay(idx)} style={{ ...actionBtn, background: C.panel2, border: `0.5px solid ${C.border}`, color: C.green, width: 24, height: 24 }}>
+                      <IconPlaySmall />
+                    </button>
+                    <button onClick={() => handleRemoveWithStats(queue.indexOf(song))} style={{ ...actionBtn, background: 'transparent', color: C.red, width: 24, height: 24, opacity: 0.6 }}>
+                      <IconTrash />
+                    </button>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                    <button onClick={() => onPlay(idx)} style={{ ...actionBtn, background: '#282828', color: '#1DB954', width: 28, height: 28 }}><IconPlaySmall /></button>
-                    <button onClick={() => onRemove(queue.indexOf(song))} style={{ ...actionBtn, background: 'transparent', color: '#ff4444', width: 28, height: 28 }}><IconTrash /></button>
-                </div>
-              </div>
-            ))}
+              ))
+            }
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ ...panelStyle, padding: 0, overflow: 'hidden' }}>
-            <div style={{ background: '#000', aspectRatio: '16/9', position: 'relative' }}>
+        {/* ── COL DERECHA: NOW PLAYING + PENDIENTES ───────────────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* NOW PLAYING */}
+          <div style={{ ...panel, padding: 0, overflow: 'hidden' }}>
+            <div style={{ background: '#0a0a0a', aspectRatio: '16/9', position: 'relative' }}>
               {queue[currentIdx] ? (
                 <>
-                  <img src={queue[currentIdx].img} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.4 }} />
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
-                      <div style={{ fontWeight: 'bold', padding: '0 10px', fontSize: '13px' }}>{queue[currentIdx].title}</div>
-                      <div style={{ fontSize: '11px', color: '#1DB954' }}>{queue[currentIdx].artist}</div>
+                  <img src={queue[currentIdx].img} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.35 }} />
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 500, color: '#f0f0f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{queue[currentIdx].title}</div>
+                    <div style={{ fontSize: 10, color: C.green, marginTop: 2 }}>{queue[currentIdx].artist}</div>
                   </div>
                 </>
-              ) : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#444', fontSize: '11px' }}>ESPERANDO...</div>}
+              ) : (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2a2a2a', fontSize: 11 }}>Esperando…</div>
+              )}
             </div>
-            <div style={{ padding: '15px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <div onClick={toggleMute} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', color: localVol === 0 ? '#ff4444' : '#b3b3b3' }}><IconVolume /> {localVol === 0 ? 'MUTE' : 'VOL'}</div>
-                    <span style={{ color: '#1DB954', fontWeight: 'bold', fontSize: '11px' }}>{localVol}%</span>
+
+            {/* VOLUMEN */}
+            <div style={{ padding: '12px 14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div onClick={toggleMute} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, cursor: 'pointer', color: localVol === 0 ? C.red : C.muted }}>
+                  <IconVolume /> {localVol === 0 ? 'Silenciado' : 'Volumen'}
                 </div>
-                <input type="range" min="0" max="100" value={localVol} onChange={handleVolChange} style={{ width: '100%', accentColor: '#1DB954' }} />
+                <span style={{ fontSize: 11, fontWeight: 500, color: C.text }}>{localVol}%</span>
+              </div>
+              {/* Barra de volumen custom */}
+              <div style={{ position: 'relative', height: 3, background: C.border, borderRadius: 2, marginBottom: 5 }}>
+                <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${localVol}%`, background: localVol === 0 ? C.red : C.green, borderRadius: 2, transition: '0.1s' }} />
+                <div style={{ position: 'absolute', top: -4, left: `calc(${localVol}% - 5px)`, width: 11, height: 11, background: localVol === 0 ? C.red : C.green, borderRadius: '50%', transition: '0.1s' }} />
+              </div>
+              {/* Slider invisible encima */}
+              <input
+                type="range" min="0" max="100" step="1" value={localVol}
+                onChange={handleVolChange}
+                style={{ width: '100%', position: 'absolute', opacity: 0, cursor: 'pointer', height: 20, marginTop: -14 }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
+                <span style={{ fontSize: 9, color: '#2a2a2a' }}>0</span>
+                <span style={{ fontSize: 9, color: '#2a2a2a' }}>100</span>
+              </div>
             </div>
           </div>
 
-          <div style={{ ...panelStyle, background: '#121212', border: '1px solid #333' }}>
-            <h2 style={headerStyle}>Pendientes ({pendingRequests.length})</h2>
-            {pendingRequests.map((song) => (
-              <div key={song.queueRowId} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', padding: '8px', background: '#1c1c1c', borderRadius: '8px' }}>
-                <div style={{ flex: 1, minWidth: 0, fontSize: '10px', fontWeight: 'bold' }}>{song.title}</div>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <button onClick={() => onApprove(song.queueRowId)} style={{ ...actionBtn, width: 26, height: 26, background: '#1DB954' }}><IconCheck /></button>
+          {/* PENDIENTES */}
+          <div style={panel}>
+            <div style={{ ...sectionLabel, justifyContent: 'space-between' }}>
+              <span style={{ color: C.amber }}>Pendientes</span>
+              {pendingRequests.length > 0 && (
+                <span style={{ background: '#1c1700', border: `0.5px solid ${C.amber}40`, color: C.amber, fontSize: 9, padding: '1px 6px', borderRadius: 4 }}>
+                  {pendingRequests.length}
+                </span>
+              )}
+            </div>
+            {pendingRequests.length === 0
+              ? <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '14px 0' }}>Sin pendientes</div>
+              : pendingRequests.map(song => (
+                <div key={song.queueRowId} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, padding: '7px 8px', background: C.panel2, borderRadius: 7, border: `0.5px solid ${C.border}`, minWidth: 0 }}>
+                  <img src={song.img} style={{ width: 28, height: 28, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 500, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{song.title}</div>
+                    <div style={{ fontSize: 9, color: C.muted, marginTop: 1 }}>
+                      {song.is_cliente ? <span style={{ color: C.green }}>cliente</span> : 'admin'}
+                      {song.created_at && <span style={{ color: '#444' }}> · {timeAgo(song.created_at)}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <button onClick={() => onApprove(song.queueRowId)} style={{ ...actionBtn, background: C.green, color: '#000', width: 26, height: 26 }}>
+                      <IconCheck />
+                    </button>
+                    <button onClick={() => handleRemoveWithStats(queue.indexOf(song))} style={{ ...actionBtn, background: 'transparent', color: C.red, width: 26, height: 26, opacity: 0.6 }}>
+                      <IconTrash />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            }
           </div>
         </div>
       </div>
 
+      {/* ── MODAL NUEVO ANUNCIO ───────────────────────────────────────────────────── */}
       {showAdModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(8px)' }}>
-          <div style={{ ...panelStyle, width: '100%', maxWidth: '400px', boxSizing: 'border-box', border: '1px solid #1DB954', padding: '25px' }}>
-            <h2 style={{ ...headerStyle, color: '#1DB954', fontSize: '14px' }}>Configurar Nueva Pauta</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.80)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ ...panel, width: '100%', maxWidth: 400, boxSizing: 'border-box', border: `0.5px solid ${C.green}50`, padding: 24 }}>
+            <div style={{ ...sectionLabel, color: C.green, marginBottom: 18 }}>Nueva pauta publicitaria</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label style={{ fontSize: '11px', color: '#888' }}>Nombre de la Marca</label>
-                <input type="text" placeholder="Ej: Heineken" style={{ width: '100%', boxSizing: 'border-box', background: '#282828', border: 'none', padding: '12px', borderRadius: '8px', color: '#fff', marginTop: '5px' }} onChange={(e) => setNewAd({...newAd, title: e.target.value})} />
+                <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5 }}>Nombre de la marca</label>
+                <input
+                  type="text" placeholder="Ej: Heineken"
+                  style={{ width: '100%', boxSizing: 'border-box', background: C.panel2, border: `0.5px solid ${C.border2}`, padding: '10px 12px', borderRadius: 7, color: C.text, fontSize: 13, outline: 'none' }}
+                  onChange={e => setNewAd({ ...newAd, title: e.target.value })}
+                />
               </div>
               <div>
-                <label style={{ fontSize: '11px', color: '#888' }}>URL de Imagen</label>
-                <input type="text" placeholder="https://..." style={{ width: '100%', boxSizing: 'border-box', background: '#282828', border: 'none', padding: '12px', borderRadius: '8px', color: '#fff', marginTop: '5px' }} onChange={(e) => setNewAd({...newAd, image_url: e.target.value})} />
+                <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5 }}>Subir imagen</label>
+                <input
+                  type="file" accept="image/*"
+                  style={{ width: '100%', boxSizing: 'border-box', background: C.panel2, border: `0.5px solid ${C.border2}`, padding: '10px 12px', borderRadius: 7, color: C.text, fontSize: 12 }}
+                  onChange={e => setAdFile(e.target.files[0])}
+                />
+                <div style={{ textAlign: 'center', margin: '8px 0', fontSize: 9, color: '#333' }}>— o usar URL —</div>
+                <input
+                  type="text" placeholder="https://..."
+                  style={{ width: '100%', boxSizing: 'border-box', background: C.panel2, border: `0.5px solid ${C.border2}`, padding: '10px 12px', borderRadius: 7, color: C.text, fontSize: 13, outline: 'none' }}
+                  value={newAd.image_url}
+                  onChange={e => setNewAd({ ...newAd, image_url: e.target.value })}
+                />
               </div>
               <div>
-                <label style={{ fontSize: '11px', color: '#888' }}>Frecuencia de Reproducción</label>
-                <select style={{ width: '100%', boxSizing: 'border-box', background: '#282828', border: 'none', padding: '12px', borderRadius: '8px', color: '#fff', marginTop: '5px' }} onChange={(e) => setNewAd({...newAd, frequency: parseInt(e.target.value)})}>
+                <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5 }}>Frecuencia</label>
+                <select
+                  style={{ width: '100%', boxSizing: 'border-box', background: C.panel2, border: `0.5px solid ${C.border2}`, padding: '10px 12px', borderRadius: 7, color: C.text, fontSize: 13 }}
+                  onChange={e => setNewAd({ ...newAd, frequency: parseInt(e.target.value) })}
+                >
+                  <option value="1">Cada 1 canciones</option>
                   <option value="2">Cada 2 canciones</option>
                   <option value="3">Cada 3 canciones</option>
                   <option value="5">Cada 5 canciones</option>
                   <option value="10">Cada 10 canciones</option>
                 </select>
               </div>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button onClick={() => setShowAdModal(false)} style={{ flex: 1, padding: '12px', borderRadius: '30px', background: 'transparent', border: '1px solid #444', color: '#eee', cursor: 'pointer' }}>Cancelar</button>
-                <button onClick={() => { onAddAd?.(newAd); setShowAdModal(false); }} style={{ flex: 1, padding: '12px', borderRadius: '30px', background: '#1DB954', border: 'none', color: '#000', fontWeight: '700', cursor: 'pointer' }}>Guardar</button>
+              <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                <button
+                  onClick={() => { setShowAdModal(false); setAdFile(null); }}
+                  style={{ flex: 1, padding: '10px', borderRadius: 7, background: 'transparent', border: `0.5px solid ${C.border2}`, color: C.muted, cursor: 'pointer', fontSize: 12 }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveAdInternal}
+                  disabled={uploadingAd}
+                  style={{ flex: 1, padding: '10px', borderRadius: 7, background: uploadingAd ? '#0e6e30' : C.green, border: 'none', color: '#000', fontWeight: 500, cursor: 'pointer', fontSize: 12 }}
+                >
+                  {uploadingAd ? "Subiendo…" : "Guardar"}
+                </button>
               </div>
             </div>
           </div>
@@ -479,9 +830,11 @@ useEffect(() => {
       {lastNewTrack && <NewBadge track={lastNewTrack} onDone={() => setLastNewTrack(null)} />}
 
       <style>{`
-        .spinner { width: 14px; height: 14px; border: 2px solid #333; border-top-color: #1DB954; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .spinner { width: 13px; height: 13px; border: 1.5px solid #333; border-top-color: #1DB954; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes badgeIn { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes badgeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        input[type=range]::-webkit-slider-thumb { display: none; }
+        input[type=range] { -webkit-appearance: none; appearance: none; }
       `}</style>
     </div>
   );
