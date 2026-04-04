@@ -640,7 +640,7 @@ export default function AdminView({
               {queue.length > 0 && (
                 <button
                   onClick={() => window.confirm("¿Vaciar todas las canciones?") && onClearQueue()}
-                  style={{ background: 'transparent', border: `0.5px solid #3a1a1a`, color: C.red, padding: '3px 10px', borderRadius: 4, fontSize: 9, fontWeight: 500, cursor: 'pointer' }}
+                  style={{ background: 'transparent', border: `1px solid ${C.red}60`, color: C.red, padding: '6px 16px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: '0.2s' }}
                 >
                   Vaciar lista
                 </button>
