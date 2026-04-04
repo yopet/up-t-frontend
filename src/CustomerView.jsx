@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { supabase } from "./lib/supabase";
 
 // ─── CONFIG ─────────────────────────────────────────────────────────────────
@@ -127,9 +127,12 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
   const safeCurrentIdx = Math.min(Math.max(0, currentIdx), Math.max(0, queue.length - 1));
   const currentTrack = queue[safeCurrentIdx] || null;
 
+  // --- ÚNICO CAMBIO: SOLUCIÓN AL BUCLE INFINITO ---
+  const queueHash = useMemo(() => queue.map(s => s.id).join(','), [queue]);
   useEffect(() => {
     setAdded(new Set(queue.map((song) => song.id)));
-  }, [queue]);
+  }, [queueHash]);
+  // ------------------------------------------------
 
   useEffect(() => {
     const q = query.trim();
@@ -243,7 +246,6 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
       return;
     }
 
-    // Enviamos la canción marcando explícitamente que viene de un cliente
     if (onSongRequest) onSongRequest({ ...track, is_cliente: true });
     
     localStorage.setItem("last_song_request", now.toString());
