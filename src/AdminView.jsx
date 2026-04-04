@@ -220,7 +220,7 @@ export default function AdminView({
           .from('screen_messages')
           .select('*', { count: 'exact', head: true })
           .eq('establishment_id', data.id)
-          .eq('status', 'approved');
+          .in('status', ['approved', 'displayed']);
 
         const { count: rejectedCount } = await supabase
           .from('screen_messages')
