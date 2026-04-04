@@ -279,10 +279,13 @@ export default function AdminView({
   // ─── Notificación nueva canción ───────────────────────────────────────────
   useEffect(() => {
     if (queue.length > prevQueueLen.current) {
-      setLastNewTrack(queue[queue.length - 1]);
-      const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
-      audio.volume = 0.4;
-      audio.play().catch(() => {});
+      const newTrack = queue[queue.length - 1];
+      if (newTrack?.is_cliente) {
+        setLastNewTrack(newTrack);
+        const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
+        audio.volume = 0.4;
+        audio.play().catch(() => {});
+      }
     }
     prevQueueLen.current = queue.length;
   }, [queue]);
