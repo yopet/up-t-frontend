@@ -42,6 +42,52 @@ function isQuotaError(data) {
   );
 }
 
+// ─── INVIDIOUS CONFIG ────────────────────────────────────────────────────────
+const INVIDIOUS_INSTANCES = [
+  "https://iv.melmac.space",
+  "https://invidious.projectsegfau.lt",
+  "https://inv.tux.pizza",
+  "https://invidious.no-logs.com",
+];
+const INVIDIOUS_TIMEOUT_MS = 3000;
+const LAST_WORKING_INSTANCE_KEY = "up_t_last_invidious_instance";
+
+function getPrioritizedInstances() {
+  const lastWorking = localStorage.getItem(LAST_WORKING_INSTANCE_KEY);
+  if (lastWorking && INVIDIOUS_INSTANCES.includes(lastWorking)) {
+    const others = INVIDIOUS_INSTANCES.filter(i => i !== lastWorking);
+    return [lastWorking, ...others];
+  }
+  return INVIDIOUS_INSTANCES;
+}
+
+function normalizeInvidious(item) {
+  const totalSecs = item.lengthSeconds || 0;
+  const m = Math.floor(totalSecs / 60);
+  const s = String(totalSecs % 60).padStart(2, "0");
+  const duration = totalSecs > 0 ? `${m}:${s}` : "";
+  const thumb = item.videoThumbnails?.find((t) => t.quality === "medium")?.url || item.videoThumbnails?.[0]?.url || "";
+  return {
+    id: item.videoId,
+    title: item.title,
+    artist: (item.author || "").replace(/ - Topic$| Music$/i, ""),
+    img: thumb.startsWith("http") ? thumb : `https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg`,
+    duration,
+    youtubeId: item.videoId,
+  };
+}
+
+function normalizeYouTube(item, durationMap = {}) {
+  return {
+    id: item.id.videoId,
+    title: item.snippet.title,
+    artist: item.snippet.channelTitle.replace(/ - Topic$| Music$/i, ""),
+    img: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
+    duration: durationMap[item.id.videoId] || "",
+    youtubeId: item.id.videoId,
+  };
+}
+
 // ─── UTILIDADES ───────────────────────────────────────────────────────────────
 function formatDuration(iso) {
   if (!iso) return "";
@@ -149,6 +195,7 @@ export default function AdminView({
   const [uploadingAd, setUploadingAd] = useState(false);
   const [screenMessages, setScreenMessages] = useState([]);
   const [pendingFilter, setPendingFilter] = useState('all'); // ← NUEVO
+  const [searchSource, setSearchSource] = useState(null);
 
   // --- LÓGICA DE CRÉDITOS UP-T ---
   const [credits, setCredits] = useState(0);
@@ -309,40 +356,93 @@ export default function AdminView({
     return () => clearTimeout(timeout);
   }, [query]);
 
-  // ─── Búsqueda YouTube ─────────────────────────────────────────────────────
+  // ─── BÚSQUEDA EN CASCADA (INVIDIOUS -> YOUTUBE) ──────────────────────────
+
+  async function searchInvidious(term, signal) {
+    const instances = getPrioritizedInstances();
+    for (const instance of instances) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), INVIDIOUS_TIMEOUT_MS);
+        signal?.addEventListener("abort", () => controller.abort());
+
+        console.log(`[Up-T Admin] Probando búsqueda en: ${instance}`);
+        const res = await fetch(
+          `${instance}/api/v1/search?q=${encodeURIComponent(term)}&type=video&fields=videoId,title,author,lengthSeconds,videoThumbnails&page=1`,
+          { signal: controller.signal, mode: 'cors' }
+        );
+        clearTimeout(timeoutId);
+
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) continue;
+
+        console.log(`[Up-T Admin] ¡Se logró con la instancia: ${instance}!`);
+        localStorage.setItem(LAST_WORKING_INSTANCE_KEY, instance);
+        return data.slice(0, 6).map(normalizeInvidious);
+      } catch (err) {
+        continue;
+      }
+    }
+    return null;
+  }
+
   const performSearch = async (searchTerm) => {
     const q = searchTerm.trim();
     if (q.length < 3) return;
-    setSearching(true); setError(""); setSuggestions([]);
+    setSearching(true); setError(""); setSuggestions([]); setSearchSource(null);
+
+    const ctrl = new AbortController();
+
+    try {
+      // 1. Intento con Invidious
+      const invResults = await searchInvidious(q, ctrl.signal);
+      if (invResults && invResults.length > 0) {
+        setResults(invResults);
+        setSearchSource("invidious");
+        setSearching(false);
+        return;
+      }
+
+      // 2. Fallback a YouTube API
+      console.warn("[Up-T Admin] Invidious falló, usando YouTube API...");
+      await searchYouTubeFallback(q, ctrl.signal);
+    } catch (e) {
+      if (e.name !== "AbortError") setError("Error de conexión");
+      setSearching(false);
+    }
+  };
+
+  const searchYouTubeFallback = async (q, signal) => {
     const searchWithKey = async (key) => {
-      const r = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=6&q=${encodeURIComponent(q)}&key=${key}`);
+      const r = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=6&q=${encodeURIComponent(q)}&key=${key}`, { signal });
       return r.json();
     };
+
     try {
       let key = getAvailableKey();
-      if (!key) { setError("Cuota agotada."); setSearching(false); return; }
+      if (!key) { setError("Cuota agotada."); return; }
       let data = await searchWithKey(key);
       while (isQuotaError(data)) {
         markKeyExhausted(key); key = getAvailableKey();
-        if (!key) { setError("Cuota agotada."); setSearching(false); return; }
+        if (!key) { setError("Cuota agotada."); return; }
         data = await searchWithKey(key);
       }
-      if (data.error) { setError(data.error.message); setSearching(false); return; }
+      if (data.error) { setError(data.error.message); return; }
+
       const items = data.items || [];
       const ids = items.map(i => i.id.videoId).join(",");
-      const det = await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${ids}&key=${key}`)).json();
+      const det = await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${ids}&key=${key}`, { signal })).json();
       const durMap = {};
       (det.items || []).forEach(v => { durMap[v.id] = formatDuration(v.contentDetails.duration); });
-      setResults(items.map(item => ({
-        id: item.id.videoId,
-        title: item.snippet.title,
-        artist: item.snippet.channelTitle.replace(/ - Topic$| Music$/i, ""),
-        img: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
-        duration: durMap[item.id.videoId] || "",
-        youtubeId: item.id.videoId,
-      })));
-    } catch { setError("Error de conexión"); }
-    finally { setSearching(false); }
+      
+      setResults(items.map(item => normalizeYouTube(item, durMap)));
+      setSearchSource("youtube");
+    } catch (e) {
+      if (e.name !== "AbortError") throw e;
+    } finally {
+      setSearching(false);
+    }
   };
 
   // ─── Volumen ──────────────────────────────────────────────────────────────
@@ -586,7 +686,14 @@ export default function AdminView({
 
           {/* Buscador */}
           <div style={{ ...panel, border: `0.5px solid ${C.green}30`, position: 'relative' }}>
-            <div style={{ ...sectionLabel, color: C.green }}>Buscador maestro</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ ...sectionLabel, color: C.green, marginBottom: 0 }}>Buscador maestro</div>
+              {searchSource && (
+                <span style={{ fontSize: 9, color: C.muted, letterSpacing: "0.05em" }}>
+                  vía {searchSource === "invidious" ? "⚡ invidious" : "▶ youtube"}
+                </span>
+              )}
+            </div>
             <div style={{ display: 'flex', background: C.panel2, padding: '9px 14px', borderRadius: 7, alignItems: 'center', gap: 10, border: `0.5px solid ${C.border}` }}>
               <IconSearch />
               <input
