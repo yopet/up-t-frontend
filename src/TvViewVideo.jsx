@@ -140,50 +140,51 @@ export default function TvViewVideo({
     } else { initPlayer(); }
   }, []);
 
- const initPlayer = () => {
-  if (window.ytPlayerInstance) return;
-  window.ytPlayerInstance = new window.YT.Player("youtube-player", {
-    height: "100%", 
-    width: "100%",
-    videoId: "",
-    playerVars: { 
-      autoplay: 1, 
-      mute: 1, 
-      controls: 0, 
-      disablekb: 1, 
-      modestbranding: 1, 
-      rel: 0,
-      enablejsapi: 1,
-      origin: window.location.origin
-    },
-    events: {
-      onReady: (e) => { 
-        // --- ESTO ELIMINA EL ERROR ---
-        const iframe = e.target.getIframe();
-        if (iframe) {
-          iframe.setAttribute("allow", "autoplay; encrypted-media; compute-pressure");
-        }
-        setPlayer(e.target); 
+  const initPlayer = () => {
+    if (window.ytPlayerInstance) return;
+
+    // Pre-configuración del elemento para evitar advertencias de permisos
+    const playerDiv = document.getElementById("youtube-player");
+    if (playerDiv) {
+      playerDiv.setAttribute("allow", "autoplay; encrypted-media; compute-pressure");
+    }
+
+    window.ytPlayerInstance = new window.YT.Player("youtube-player", {
+      height: "100%", 
+      width: "100%",
+      videoId: "",
+      playerVars: { 
+        autoplay: 1, 
+        mute: 1, 
+        controls: 0, 
+        disablekb: 1, 
+        modestbranding: 1, 
+        rel: 0,
+        enablejsapi: 1,
+        origin: window.location.origin
       },
-      onStateChange: (e) => {
-        if (e.data === window.YT.PlayerState.ENDED) onTrackEndRef.current();
+      events: {
+        onReady: (e) => { 
+          const iframe = e.target.getIframe();
+          if (iframe) {
+            iframe.setAttribute("allow", "autoplay; encrypted-media; compute-pressure");
+          }
+          setPlayer(e.target); 
+        },
+        onStateChange: (e) => {
+          if (e.data === window.YT.PlayerState.ENDED) onTrackEndRef.current();
+        },
+        onError: () => { onTrackEndRef.current(); },
       },
-      onError: () => { onTrackEndRef.current(); },
-    },
-  });
-};
+    });
+  };
 
   useEffect(() => {
-    // Si no hay player o el track no tiene ID (está vacío), paramos aquí
     if (!player || !track.youtubeId) return;
-
-    // BLOQUEO: Solo cargar si el ID es nuevo
     if (lastVideoIdRef.current === track.youtubeId) return;
 
     try {
-        // Marcamos el nuevo ID antes de cargar para evitar bucles
         lastVideoIdRef.current = track.youtubeId;
-        
         player.mute();
         player.loadVideoById(track.youtubeId);
         player.playVideo();
@@ -243,7 +244,8 @@ export default function TvViewVideo({
           <div style={{ flex: 1, minHeight: 0, borderRadius: 20, overflow: "hidden", boxShadow: `0 30px 80px rgba(0,0,0,0.8), 0 0 60px ${track.color}33`, background: "#000", position: "relative" }}>
             
             <div style={{ width: "100%", height: "100%", position: "absolute", inset: 0, opacity: (showAd || !track.youtubeId) ? 0 : 1, transition: "opacity 0.3s" }}>
-               <div id="youtube-player"></div>
+               {/* Atributo allow añadido preventivamente al contenedor */}
+               <div id="youtube-player" allow="autoplay; encrypted-media; compute-pressure"></div>
             </div>
 
             {!track.youtubeId && !showAd && (
@@ -341,6 +343,7 @@ export default function TvViewVideo({
         @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
         @keyframes progressAd { from { width: 0%; } to { width: 100%; } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        #youtube-player { pointer-events: none; }
       `}</style>
     </div>
   );
