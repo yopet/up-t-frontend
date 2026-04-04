@@ -440,7 +440,7 @@ export default function AdminView({
 
   // ─── RENDER ───────────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', overflowY: 'auto', background: C.bg, color: C.text, fontFamily: 'system-ui, -apple-system, sans-serif', boxSizing: 'border-box' }}>
+    <div style={{ minHeight: '100vh', overflowY: 'auto', overflowX: 'hidden', background: C.bg, color: C.text, fontFamily: 'system-ui, -apple-system, sans-serif', boxSizing: 'border-box' }}>
 
       {/* ── HEADER ─────────────────────────────────────────────────────────────── */}
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px', borderBottom: `0.5px solid ${C.border}` }}>
@@ -480,10 +480,10 @@ export default function AdminView({
       </div>
 
       {/* ── GRID PRINCIPAL ───────────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '240px minmax(0,2fr) 210px', gap: 14, padding: '0 24px 28px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '240px minmax(0, 1fr) 350px', gap: 14, padding: '0 24px 28px' }}>
 
         {/* ── COL IZQUIERDA: ADS + MENSAJES ──────────────────────────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
 
           {/* PUBLICIDAD */}
           <div style={panel}>
@@ -557,7 +557,7 @@ export default function AdminView({
         </div>
 
         {/* ── COL CENTRO: BUSCADOR + COLA ─────────────────────────────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, overflow: 'hidden' }}>
 
           {/* BUSCADOR */}
           <div style={{ ...panel, border: `0.5px solid ${C.green}30`, position: 'relative' }}>
@@ -684,7 +684,7 @@ export default function AdminView({
         </div>
 
         {/* ── COL DERECHA: NOW PLAYING + PENDIENTES ───────────────────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
 
           {/* NOW PLAYING */}
           <div style={{ ...panel, padding: 0, overflow: 'hidden' }}>
@@ -702,28 +702,26 @@ export default function AdminView({
               )}
             </div>
 
-            {/* VOLUMEN */}
             <div style={{ padding: '12px 14px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <div onClick={toggleMute} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, cursor: 'pointer', color: localVol === 0 ? C.red : C.muted }}>
                   <IconVolume /> {localVol === 0 ? 'Silenciado' : 'Volumen'}
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 500, color: C.text }}>{localVol}%</span>
               </div>
-              {/* Barra de volumen custom */}
-              <div style={{ position: 'relative', height: 3, background: C.border, borderRadius: 2, marginBottom: 5 }}>
-                <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${localVol}%`, background: localVol === 0 ? C.red : C.green, borderRadius: 2, transition: '0.1s' }} />
-                <div style={{ position: 'absolute', top: -4, left: `calc(${localVol}% - 5px)`, width: 11, height: 11, background: localVol === 0 ? C.red : C.green, borderRadius: '50%', transition: '0.1s' }} />
-              </div>
-              {/* Slider invisible encima */}
-              <input
-                type="range" min="0" max="100" step="1" value={localVol}
-                onChange={handleVolChange}
-                style={{ width: '100%', position: 'absolute', opacity: 0, cursor: 'pointer', height: 20, marginTop: -14 }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
-                <span style={{ fontSize: 9, color: '#2a2a2a' }}>0</span>
-                <span style={{ fontSize: 9, color: '#2a2a2a' }}>100</span>
+              
+              <div style={{ position: 'relative', height: 24, display: 'flex', alignItems: 'center' }}>
+                {/* Barra visual de fondo */}
+                <div style={{ width: '100%', height: 4, background: C.border, borderRadius: 2, position: 'absolute', pointerEvents: 'none' }}>
+                  <div style={{ height: '100%', width: `${localVol}%`, background: localVol === 0 ? C.red : C.green, borderRadius: 2, transition: '0.1s' }} />
+                  <div style={{ position: 'absolute', top: -4, left: `calc(${localVol}% - 5px)`, width: 11, height: 11, background: localVol === 0 ? C.red : C.green, borderRadius: '50%', transition: '0.1s', boxShadow: '0 0 4px rgba(0,0,0,0.5)' }} />
+                </div>
+                {/* Input real invisible encima para capturar el mouse */}
+                <input
+                  type="range" min="0" max="100" step="1" value={localVol}
+                  onChange={handleVolChange}
+                  style={{ width: '100%', opacity: 0, cursor: 'pointer', zIndex: 5, margin: 0, height: '100%' }}
+                />
               </div>
             </div>
           </div>
@@ -833,8 +831,6 @@ export default function AdminView({
         .spinner { width: 13px; height: 13px; border: 1.5px solid #333; border-top-color: #1DB954; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes badgeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        input[type=range]::-webkit-slider-thumb { display: none; }
-        input[type=range] { -webkit-appearance: none; appearance: none; }
       `}</style>
     </div>
   );

@@ -60,7 +60,7 @@ export default function TvViewVideo({
   const volumeRef = useRef(volume);
   const startedRef = useRef(started);
   const adVideoRef = useRef(null);
-  const lastVideoIdRef = useRef(null); // NUEVO: Para evitar reinicios si el ID no cambia
+  const lastVideoIdRef = useRef(null);
 
   useEffect(() => { onTrackEndRef.current = onTrackEnd; }, [onTrackEnd]);
   useEffect(() => { volumeRef.current = volume; }, [volume]);
@@ -140,44 +140,66 @@ export default function TvViewVideo({
     } else { initPlayer(); }
   }, []);
 
-  const initPlayer = () => {
-    if (window.ytPlayerInstance) return;
-    window.ytPlayerInstance = new window.YT.Player("youtube-player", {
-      height: "100%", width: "100%",
-      videoId: "",
-      playerVars: { autoplay: 1, mute: 1, controls: 0, disablekb: 1, modestbranding: 1, rel: 0 },
-      events: {
-        onReady: (e) => { setPlayer(e.target); },
-        onStateChange: (e) => {
-          if (e.data === window.YT.PlayerState.ENDED) onTrackEndRef.current();
-        },
-        onError: () => { onTrackEndRef.current(); },
+ const initPlayer = () => {
+  if (window.ytPlayerInstance) return;
+  window.ytPlayerInstance = new window.YT.Player("youtube-player", {
+    height: "100%", 
+    width: "100%",
+    videoId: "",
+    playerVars: { 
+      autoplay: 1, 
+      mute: 1, 
+      controls: 0, 
+      disablekb: 1, 
+      modestbranding: 1, 
+      rel: 0,
+      enablejsapi: 1,
+      origin: window.location.origin
+    },
+    events: {
+      onReady: (e) => { 
+        // --- ESTO ELIMINA EL ERROR ---
+        const iframe = e.target.getIframe();
+        if (iframe) {
+          iframe.setAttribute("allow", "autoplay; encrypted-media; compute-pressure");
+        }
+        setPlayer(e.target); 
       },
-    });
-  };
+      onStateChange: (e) => {
+        if (e.data === window.YT.PlayerState.ENDED) onTrackEndRef.current();
+      },
+      onError: () => { onTrackEndRef.current(); },
+    },
+  });
+};
 
-  // --- LÓGICA DE REPRODUCCIÓN REFORZADA ---
   useEffect(() => {
-    if (!player || !track.youtubeId || track.youtubeId === "") return;
+    // Si no hay player o el track no tiene ID (está vacío), paramos aquí
+    if (!player || !track.youtubeId) return;
 
-    // ESCUDO: Si el ID de YouTube es el mismo que ya está cargado, NO reiniciamos
+    // BLOQUEO: Solo cargar si el ID es nuevo
     if (lastVideoIdRef.current === track.youtubeId) return;
 
-    player.mute();
     try {
+        // Marcamos el nuevo ID antes de cargar para evitar bucles
+        lastVideoIdRef.current = track.youtubeId;
+        
+        player.mute();
         player.loadVideoById(track.youtubeId);
         player.playVideo();
-        lastVideoIdRef.current = track.youtubeId; // Actualizamos la referencia
-    } catch (err) { console.error(err); }
 
-    if (startedRef.current) {
-      const timer = setTimeout(() => {
-        player.unMute();
-        player.setVolume(volumeRef.current);
-      }, 800);
-      return () => clearTimeout(timer);
+        if (startedRef.current) {
+          setTimeout(() => {
+            if (player.unMute) {
+                player.unMute();
+                player.setVolume(volumeRef.current);
+            }
+          }, 1000);
+        }
+    } catch (err) { 
+        console.error("Error cargando video:", err); 
     }
-  }, [track.youtubeId, player]); // Quitamos safeIdx para que solo reaccione al ID
+  }, [track.youtubeId, player]);
 
   useEffect(() => {
     if (player && player.setVolume) {
@@ -190,7 +212,7 @@ export default function TvViewVideo({
   const handleStart = () => {
     setStarted(true);
     startedRef.current = true;
-    if (player) {
+    if (player && player.playVideo) {
       player.unMute();
       player.setVolume(volumeRef.current);
       player.playVideo();
