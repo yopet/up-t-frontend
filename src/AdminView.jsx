@@ -190,7 +190,7 @@ export default function AdminView({
   const [rejectedMessagesCount, setRejectedMessagesCount] = useState(0);
   const [approvedMessagesCount, setApprovedMessagesCount] = useState(0);
   const [showAdModal, setShowAdModal] = useState(false);
-  const [newAd, setNewAd] = useState({ title: '', image_url: '', frequency: 3 });
+  const [newAd, setNewAd] = useState({ title: '', image_url: '', frequency: 1 });
   const [adFile, setAdFile] = useState(null);
   const [uploadingAd, setUploadingAd] = useState(false);
   const [screenMessages, setScreenMessages] = useState([]);
@@ -470,10 +470,10 @@ export default function AdminView({
       if (adFile) {
         const ext = adFile.name.split('.').pop();
         const fileName = `${Math.random().toString(36).substring(2)}.${ext}`;
-        const filePath = `ad_images/${fileName}`;
-        const { error: upErr } = await supabase.storage.from('ads').upload(filePath, adFile);
+        const filePath = `${fileName}`;
+        const { error: upErr } = await supabase.storage.from('images').upload(filePath, adFile);
         if (upErr) throw upErr;
-        const { data: urlData } = supabase.storage.from('ads').getPublicUrl(filePath);
+        const { data: urlData } = supabase.storage.from('images').getPublicUrl(filePath);
         finalUrl = urlData.publicUrl;
       }
       const adToSave = {
@@ -483,11 +483,11 @@ export default function AdminView({
         establishment_id: establishmentId,
         active: true
       };
-      const { data, error: insErr } = await supabase.from('ads').insert([adToSave]).select();
+      const { data, error: insErr } = await supabase.from('promociones').insert([adToSave]).select();
       if (insErr) throw insErr;
       if (onAddAd) await onAddAd(data[0]);
       setShowAdModal(false);
-      setNewAd({ title: '', image_url: '', frequency: 3 });
+      setNewAd({ title: '', image_url: '', frequency: 1 });
       setAdFile(null);
       alert("✅ Anuncio agregado correctamente");
     } catch (err) {
@@ -501,7 +501,7 @@ export default function AdminView({
   const handleRemoveAdInternal = async (adId) => {
     if (!window.confirm("¿Estás seguro de eliminar este anuncio?")) return;
     try {
-      const { error } = await supabase.from('ads').delete().eq('id', adId);
+      const { error } = await supabase.from('promociones').delete().eq('id', adId);
       if (error) throw error;
       if (onRemoveAd) onRemoveAd(adId);
       alert("Anuncio eliminado");
@@ -957,6 +957,7 @@ export default function AdminView({
                 <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5 }}>Nombre de la marca</label>
                 <input
                   type="text" placeholder="Ej: Heineken"
+                  value={newAd.title}
                   style={{ width: '100%', boxSizing: 'border-box', background: C.panel2, border: `0.5px solid ${C.border2}`, padding: '10px 12px', borderRadius: 7, color: C.text, fontSize: 13, outline: 'none' }}
                   onChange={e => setNewAd({ ...newAd, title: e.target.value })}
                 />
@@ -979,6 +980,7 @@ export default function AdminView({
               <div>
                 <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5 }}>Frecuencia</label>
                 <select
+                  value={newAd.frequency}
                   style={{ width: '100%', boxSizing: 'border-box', background: C.panel2, border: `0.5px solid ${C.border2}`, padding: '10px 12px', borderRadius: 7, color: C.text, fontSize: 13 }}
                   onChange={e => setNewAd({ ...newAd, frequency: parseInt(e.target.value) })}
                 >

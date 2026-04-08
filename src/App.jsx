@@ -119,7 +119,7 @@ export default function App() {
 
   const fetchAds = useCallback(async () => {
     if (!selectedEstId) return;
-    const { data } = await supabase.from("ads").select("*").eq("establishment_id", selectedEstId).eq("active", true);
+    const { data } = await supabase.from("promociones").select("*").eq("establishment_id", selectedEstId).eq("active", true);
     if (data) setAds(data);
   }, [selectedEstId]);
 
