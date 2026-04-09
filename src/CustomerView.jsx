@@ -244,6 +244,7 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
   const [error, setError] = useState("");
   // Indica si la búsqueda vino de Invidious o YouTube (para debug/logs)
   const [searchSource, setSearchSource] = useState(null);
+  const [lastAddedSongId, setLastAddedSongId] = useState(null); // To track the last song added by this client
 
   const [showMsgModal, setShowMsgModal] = useState(false);
   const [msgText, setMsgText] = useState("");
@@ -395,7 +396,7 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  const addToQueue = (track) => {
+  const addToQueue = async (track) => {
     if (added.has(track.id)) return;
 
     const lastRequest = localStorage.getItem("last_song_request");
@@ -414,11 +415,48 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
       return;
     }
 
-    if (onSongRequest) onSongRequest({ ...track, is_cliente: true });
-    localStorage.setItem("last_song_request", now.toString());
+    // Optimistic update for added state
     setAdded((s) => new Set([...s, track.id]));
     setToast(`"${track.title}" agregada a la cola`);
+
+    // Call onSongRequest and store the returned queueRowId
+    try {
+      const queueRowId = await onSongRequest({ ...track, is_cliente: true });
+      localStorage.setItem("last_song_request", now.toString());
+      setLastAddedSongId(queueRowId); // Store the ID to find its position later
+    } catch (err) {
+      console.error("Error adding song:", err);
+      setError("Error al agregar canción.");
+      setAdded(prev => { // Revert added state if error
+        const newSet = new Set(prev);
+        newSet.delete(track.id);
+        return newSet;
+      });
+    }
   };
+
+  // Effect to show toast with position after queue updates
+  useEffect(() => {
+    if (lastAddedSongId && queue.length > 0) {
+      const approvedQueue = queue.filter(s => s.isApproved);
+      const newSongIndex = approvedQueue.findIndex(s => s.queueRowId === lastAddedSongId);
+      if (newSongIndex !== -1) {
+        const absolutePosition = newSongIndex + 1;
+        const relativePosition = absolutePosition - (currentIdx + 1);
+        let message = `Tu canción fue añadida.`;
+        if (relativePosition > 0) {
+          message += ` Estás en el puesto #${relativePosition} de la fila.`;
+        } else if (relativePosition === 0) {
+          message += ` ¡Es la siguiente en sonar!`;
+        } else {
+          // This case should ideally not happen for a newly added song
+          message += ` Ya está sonando o ha pasado.`;
+        }
+        setToast(message);
+        setLastAddedSongId(null); // Reset to avoid re-triggering
+      }
+    }
+  }, [queue, lastAddedSongId, currentIdx]);
 
   const handleSendMsg = async () => {
     if (!msgText.trim()) return;
@@ -713,9 +751,9 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
 
       {/* MODAL MENSAJE */}
       {showMsgModal && (
-        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, backdropFilter: "blur(4px)" }}>
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }}>
           <div style={{ background: surface, width: "100%", maxWidth: 400, borderRadius: 20, padding: 24, border: `1px solid ${border}`, animation: "modalIn 0.3s ease" }}>
-            <h3 style={{ marginTop: 0, fontSize: 18, color: "#1db954" }}>Enviar saludo</h3>
+            <h3 style={{ marginTop: 0, fontSize: 18, color: "#1db954" }}>Enviar saludo a la Pantalla</h3>
             <input
               placeholder="Tu nombre"
               value={msgAuthor}

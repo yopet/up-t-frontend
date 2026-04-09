@@ -91,7 +91,11 @@ export default function App() {
       .from("queue")
       .select("*, songs_repository(*)")
       .eq("establishment_id", selectedEstId)
+      // 1. Canciones de cliente primero (is_cliente DESC)
+      // 2. Entre clientes: orden de aprobación (approved_at ASC)
+      // 3. Canciones del admin: al final (requested_at ASC)
       .order("is_cliente", { ascending: false })
+      .order("approved_at", { ascending: true, nullsFirst: false })
       .order("requested_at", { ascending: true });
 
     if (!data) return;
@@ -119,7 +123,7 @@ export default function App() {
 
   const fetchAds = useCallback(async () => {
     if (!selectedEstId) return;
-    const { data } = await supabase.from("promociones").select("*").eq("establishment_id", selectedEstId).eq("active", true);
+    const { data } = await supabase.from("ads").select("*").eq("establishment_id", selectedEstId).eq("active", true);
     if (data) setAds(data);
   }, [selectedEstId]);
 
@@ -232,7 +236,9 @@ export default function App() {
       p_request_id: rowId,
       p_establishment_id: selectedEstId
     });
-    if (error) alert("Error: " + error.message);
+    if (error) { alert("Error: " + error.message); return; }
+    // Marca el momento exacto de aprobación para respetar el orden de prioridad
+    await supabase.from("queue").update({ approved_at: new Date().toISOString() }).eq("id", rowId);
   };
 
   const handleSongRequest = async (song, forceApprove = false) => {
@@ -244,12 +250,21 @@ export default function App() {
       img_url: song.img || song.img_url
     }, { onConflict: "youtube_id" }).select().single();
 
-    await supabase.from("queue").insert({
+    const isApproved = forceApprove || autoPlay;
+    const { data: newQueueItem, error } = await supabase.from("queue").insert({
       establishment_id: selectedEstId,
       song_id: repoSong.id,
-      is_approved: forceApprove || autoPlay,
-      is_cliente: song.is_cliente || false
-    });
+      is_approved: isApproved,
+      is_cliente: song.is_cliente || false,
+      // Si se aprueba al insertar, marcamos el momento para respetar el orden de prioridad
+      approved_at: isApproved ? new Date().toISOString() : null,
+    }).select('id').single(); // Select the ID of the new queue item
+
+    if (error) {
+      console.error("Error inserting song into queue:", error);
+      throw error; // Propagate error
+    }
+    return newQueueItem.id; // Return the queueRowId
   };
 
   // ─── Helpers para play y skip que actualizan el rowId de referencia ───────

@@ -730,7 +730,10 @@ export default function AdminView({
                       <div style={{ fontSize: 9, color: C.muted }}>{track.artist}</div>
                     </div>
                     <button
-                      onClick={() => { onAddSong(track); setQuery(""); setResults([]); }}
+                    onClick={() => {
+                      onAddSong(track);
+                      setQuery(""); setResults([]); 
+                    }}
                       style={{ ...actionBtn, background: C.green, color: '#000', width: 26, height: 26, fontSize: 16 }}
                     >
                       +
