@@ -239,12 +239,12 @@ const SidebarStats = ({ queue, clientStats, approvedMessagesCount, screenMessage
   </div>
 );
 
-const OrderPanel = ({ 
-  orders, 
-  handleOrderAction, 
-  selectedTableDetail, 
-  setSelectedTableDetail, 
-  updateItemStatus, 
+const OrderPanel = ({
+  orders,
+  handleOrderAction,
+  selectedTableDetail,
+  setSelectedTableDetail,
+  updateItemStatus,
   cancelItem,
   queue = [],
   screenMessages = [],
@@ -282,7 +282,7 @@ const OrderPanel = ({
   };
 
   const activeOrders = orders.filter(o => o.status === 'pending' || o.status === 'completed');
-  
+
   // Agrupar todo por mesa
   const tableGroups = {};
 
@@ -332,92 +332,92 @@ const OrderPanel = ({
 
         {/* CONTENIDO DEL DETALLE */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-          
-                {/* 1. CANCIONES */}
-                {detail.songs.length > 0 && (
-                  <div style={{ marginBottom: 24 }}>
-                    <div style={{ fontSize: 10, color: C.green, fontWeight: 700, marginBottom: 12, letterSpacing: '0.05em' }}>🎶 SOLICITUDES DE MÚSICA</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {detail.songs.map((song) => (
-                        <div key={song.queueRowId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'rgba(29,185,84,0.05)', borderRadius: 12, border: `1px solid ${C.green}30`, opacity: song.isApproved ? 0.6 : 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <img src={song.img} style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }} alt="" />
-                            <div>
-                              <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', textDecoration: song.isApproved ? 'line-through' : 'none' }}>{song.title}</div>
-                              <div style={{ fontSize: 10, color: C.muted }}>{song.artist}</div>
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            {!song.isApproved ? (
-                              <>
-                                <button onClick={() => handleApproveSong(song)} style={{ padding: '6px 12px', borderRadius: 8, background: C.green, border: 'none', color: '#000', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Aprobar</button>
-                                <button onClick={() => cancelItem(null, null, song.queueRowId, 'song')} style={{ padding: '6px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${C.red}`, color: C.red, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>X</button>
-                              </>
-                            ) : (
-                              <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>✓ Aprobada</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
-                {/* 2. MENSAJES */}
-                {detail.messages.length > 0 && (
-                  <div style={{ marginBottom: 24 }}>
-                    <div style={{ fontSize: 10, color: '#00c9ff', fontWeight: 700, marginBottom: 12, letterSpacing: '0.05em' }}>✉️ MENSAJES DEDICATORIAS</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {detail.messages.map((msg) => (
-                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px', background: 'rgba(0,201,255,0.05)', borderRadius: 12, border: `1px solid #00c9ff30`, opacity: msg.status !== 'pending' ? 0.6 : 1 }}>
-                          <div style={{ fontSize: 11, color: C.muted, fontStyle: 'italic', textDecoration: msg.status !== 'pending' ? 'line-through' : 'none' }}>"{msg.text}"</div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 10, color: '#00c9ff', fontWeight: 600 }}>— {msg.author}</span>
-                            <div style={{ display: 'flex', gap: 8 }}>
-                              {msg.status === 'pending' ? (
-                                <>
-                                  <button onClick={() => handleMessageAction(msg.id, 'approved')} style={{ padding: '4px 10px', borderRadius: 6, background: '#00c9ff', border: 'none', color: '#000', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>Publicar</button>
-                                  <button onClick={() => handleMessageAction(msg.id, 'rejected')} style={{ padding: '4px 10px', borderRadius: 6, background: 'transparent', border: `1px solid ${C.red}`, color: C.red, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>X</button>
-                                </>
-                              ) : (
-                                <span style={{ fontSize: 10, color: '#00c9ff', fontWeight: 600 }}>✓ Publicado</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+          {/* 1. CANCIONES */}
+          {detail.songs.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 10, color: C.green, fontWeight: 700, marginBottom: 12, letterSpacing: '0.05em' }}>🎶 SOLICITUDES DE MÚSICA</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {detail.songs.map((song) => (
+                  <div key={song.queueRowId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'rgba(29,185,84,0.05)', borderRadius: 12, border: `1px solid ${C.green}30`, opacity: song.isApproved ? 0.6 : 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <img src={song.img} style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }} alt="" />
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', textDecoration: song.isApproved ? 'line-through' : 'none' }}>{song.title}</div>
+                        <div style={{ fontSize: 10, color: C.muted }}>{song.artist}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {!song.isApproved ? (
+                        <>
+                          <button onClick={() => handleApproveSong(song)} style={{ padding: '6px 12px', borderRadius: 8, background: C.green, border: 'none', color: '#000', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Aprobar</button>
+                          <button onClick={() => cancelItem(null, null, song.queueRowId, 'song')} style={{ padding: '6px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${C.red}`, color: C.red, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>X</button>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>✓ Aprobada</span>
+                      )}
                     </div>
                   </div>
-                )}
+                ))}
+              </div>
+            </div>
+          )}
 
-                {/* 3. BEBIDAS */}
-                {detail.items.length > 0 && (
-                  <div style={{ marginBottom: 24 }}>
-                    <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, marginBottom: 12, letterSpacing: '0.05em' }}>BEBIDAS Y PRODUCTOS</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {detail.items.map((it, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 12, border: `1px solid ${C.border2}` }}>
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: it.status === 'completed' ? C.muted : '#fff', textDecoration: it.status === 'completed' ? 'line-through' : 'none' }}>
-                              {it.name} <span style={{ color: C.green, marginLeft: 4 }}>x1</span>
-                            </div>
-                            <div style={{ fontSize: 11, color: C.muted }}>${it.price.toLocaleString()}</div>
-                          </div>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            {it.status !== 'completed' ? (
-                              <>
-                                <button onClick={() => updateItemStatus(it.orderId, it.itemIdx, 'completed')} style={{ padding: '6px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${C.green}`, color: C.green, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Entregar</button>
-                                <button onClick={() => cancelItem(it.orderId, it.itemIdx)} style={{ padding: '6px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${C.red}`, color: C.red, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
-                              </>
-                            ) : (
-                              <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>✓ Entregado</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+          {/* 2. MENSAJES */}
+          {detail.messages.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 10, color: '#00c9ff', fontWeight: 700, marginBottom: 12, letterSpacing: '0.05em' }}>✉️ MENSAJES DEDICATORIAS</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {detail.messages.map((msg) => (
+                  <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px', background: 'rgba(0,201,255,0.05)', borderRadius: 12, border: `1px solid #00c9ff30`, opacity: msg.status !== 'pending' ? 0.6 : 1 }}>
+                    <div style={{ fontSize: 11, color: C.muted, fontStyle: 'italic', textDecoration: msg.status !== 'pending' ? 'line-through' : 'none' }}>"{msg.text}"</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 10, color: '#00c9ff', fontWeight: 600 }}>— {msg.author}</span>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {msg.status === 'pending' ? (
+                          <>
+                            <button onClick={() => handleMessageAction(msg.id, 'approved')} style={{ padding: '4px 10px', borderRadius: 6, background: '#00c9ff', border: 'none', color: '#000', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>Publicar</button>
+                            <button onClick={() => handleMessageAction(msg.id, 'rejected')} style={{ padding: '4px 10px', borderRadius: 6, background: 'transparent', border: `1px solid ${C.red}`, color: C.red, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>X</button>
+                          </>
+                        ) : (
+                          <span style={{ fontSize: 10, color: '#00c9ff', fontWeight: 600 }}>✓ Publicado</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                )}
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 3. BEBIDAS */}
+          {detail.items.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, marginBottom: 12, letterSpacing: '0.05em' }}>BEBIDAS Y PRODUCTOS</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {detail.items.map((it, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 12, border: `1px solid ${C.border2}` }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: it.status === 'completed' ? C.muted : '#fff', textDecoration: it.status === 'completed' ? 'line-through' : 'none' }}>
+                        {it.name} <span style={{ color: C.green, marginLeft: 4 }}>x1</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: C.muted }}>${it.price.toLocaleString()}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {it.status !== 'completed' ? (
+                        <>
+                          <button onClick={() => updateItemStatus(it.orderId, it.itemIdx, 'completed')} style={{ padding: '6px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${C.green}`, color: C.green, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Entregar</button>
+                          <button onClick={() => cancelItem(it.orderId, it.itemIdx)} style={{ padding: '6px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${C.red}`, color: C.red, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>✓ Entregado</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* FOOTER TOTAL */}
@@ -427,19 +427,19 @@ const OrderPanel = ({
             <span style={{ fontSize: 20, fontWeight: 900, color: C.green }}>${detail.total.toLocaleString()}</span>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
-            <button 
+            <button
               onClick={async () => {
-                for(const id of detail.orderIds) await handleOrderAction(id, 'completed');
+                for (const id of detail.orderIds) await handleOrderAction(id, 'completed');
                 setSelectedTableDetail(null);
               }}
               style={{ flex: 2, background: C.green, color: '#000', border: 'none', borderRadius: 10, padding: '14px', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}
             >
               Entregar mesa completa
             </button>
-            <button 
+            <button
               onClick={async () => {
-                if(confirm('¿Cancelar pedido completo?')) {
-                  for(const id of detail.orderIds) await handleOrderAction(id, 'cancelled');
+                if (confirm('¿Cancelar pedido completo?')) {
+                  for (const id of detail.orderIds) await handleOrderAction(id, 'cancelled');
                   setSelectedTableDetail(null);
                 }
               }}
@@ -459,7 +459,7 @@ const OrderPanel = ({
         <div style={{ ...styles.sectionLabel, color: C.green, marginBottom: 0 }}>Gestión de Mesas</div>
         <div style={{ fontSize: 11, color: C.muted }}>{mesas.filter(m => tableGroups[m]?.items.some(it => it.status === 'pending')).length} mesas activas</div>
       </div>
-      
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
         {mesas.map(m => {
           const group = tableGroups[m] || { items: [], songs: [], messages: [], total: 0 };
@@ -467,13 +467,13 @@ const OrderPanel = ({
           const hasActivity = group.items.length > 0 || group.songs.length > 0 || group.messages.length > 0;
 
           return (
-            <div 
-              key={m} 
+            <div
+              key={m}
               onClick={() => hasActivity && setSelectedTableDetail(m)}
-              style={{ 
-                background: C.panel2, 
-                borderRadius: 14, 
-                border: `1px solid ${hasActivity ? C.green + '40' : C.border}`, 
+              style={{
+                background: C.panel2,
+                borderRadius: 14,
+                border: `1px solid ${hasActivity ? C.green + '40' : C.border}`,
                 padding: 16,
                 cursor: hasActivity ? 'pointer' : 'default',
                 transition: '0.2s',
@@ -507,9 +507,9 @@ const OrderPanel = ({
                 )}
               </div>
 
-              <button 
+              <button
                 onClick={(e) => { e.stopPropagation(); setShowManualOrder(m); }}
-                style={{ 
+                style={{
                   marginTop: 14,
                   width: '100%',
                   padding: '8px',
@@ -543,16 +543,17 @@ const OrderPanel = ({
               {drinks.map(d => {
                 const count = manualCart.filter(it => it.id === d.id).length;
                 return (
-                  <div 
-                    key={d.id} 
+                  <div
+                    key={d.id}
                     style={{ background: C.panel2, borderRadius: 12, padding: 10, border: `1px solid ${count > 0 ? C.green + '50' : C.border2}`, transition: '0.2s' }}
+
                   >
                     <img src={d.img} style={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 8, marginBottom: 8, opacity: count > 0 ? 1 : 0.5 }} />
                     <div style={{ fontSize: 11, fontWeight: 600, height: 26, overflow: 'hidden' }}>{d.name}</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
                       <div style={{ fontSize: 11, fontWeight: 800, color: C.green }}>${d.price.toLocaleString()}</div>
                       {count === 0 ? (
-                        <button 
+                        <button
                           onClick={() => setManualCart([...manualCart, d])}
                           style={{ background: C.green, color: '#000', border: 'none', borderRadius: 20, padding: '4px 12px', fontSize: 10, fontWeight: 800, cursor: 'pointer' }}
                         >
@@ -560,7 +561,7 @@ const OrderPanel = ({
                         </button>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(0,0,0,0.2)', borderRadius: 20, padding: '2px 6px', border: `1px solid ${C.green}50` }}>
-                          <button 
+                          <button
                             onClick={() => {
                               const idx = manualCart.findLastIndex(it => it.id === d.id);
                               if (idx !== -1) {
@@ -572,7 +573,7 @@ const OrderPanel = ({
                             style={{ background: 'none', border: 'none', color: '#fff', fontSize: 16, cursor: 'pointer', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
                           >-</button>
                           <span style={{ fontSize: 12, fontWeight: 800, minWidth: 14, textAlign: 'center', color: C.green }}>{count}</span>
-                          <button 
+                          <button
                             onClick={() => setManualCart([...manualCart, d])}
                             style={{ background: 'none', border: 'none', color: C.green, fontSize: 16, cursor: 'pointer', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
                           >+</button>
@@ -589,11 +590,11 @@ const OrderPanel = ({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                   <div>
                     <div style={{ fontSize: 12, color: C.muted }}>{manualCart.length} productos</div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>${manualCart.reduce((a,b)=>a+b.price,0).toLocaleString()}</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>${manualCart.reduce((a, b) => a + b.price, 0).toLocaleString()}</div>
                   </div>
                   <button onClick={() => setManualCart([])} style={{ background: 'none', border: 'none', color: C.red, fontSize: 12, fontWeight: 600 }}>Vaciar</button>
                 </div>
-                <button 
+                <button
                   onClick={handleSendManualOrder}
                   style={{ width: '100%', padding: '14px', borderRadius: 12, background: C.green, color: '#000', border: 'none', fontWeight: 900, cursor: 'pointer' }}
                 >
@@ -761,27 +762,27 @@ export default function AdminView({
     if (!order) return;
     const newItems = [...order.items];
     newItems[itemIndex] = { ...newItems[itemIndex], status: newStatus };
-    
+
     // Si todos los items están completados, marcar orden como completada
     const allDone = newItems.every(i => i.status === 'completed');
-    
-    const { error } = await supabase.from('drink_orders').update({ 
+
+    const { error } = await supabase.from('drink_orders').update({
       items: newItems,
       status: allDone ? 'completed' : 'pending'
     }).eq('id', orderId);
-    
+
     if (error) console.error("Error actualizando item:", error);
   };
 
   const cancelItem = async (orderId, itemIndex, songId, type) => {
     if (type === 'song') {
-        await supabase.from('queue').delete().eq('id', songId);
-        return;
+      await supabase.from('queue').delete().eq('id', songId);
+      return;
     }
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
     const newItems = order.items.filter((_, i) => i !== itemIndex);
-    
+
     if (newItems.length === 0) {
       await handleOrderAction(orderId, 'cancelled');
     } else {
@@ -1292,9 +1293,9 @@ export default function AdminView({
           {/* DASHBOARD VIEW - PEDIDOS */}
           {activeTab === 'dashboard' && (
             <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-            <OrderPanel 
-                orders={orders} 
-                handleOrderAction={handleOrderAction} 
+              <OrderPanel
+                orders={orders}
+                handleOrderAction={handleOrderAction}
                 selectedTableDetail={selectedTableDetail}
                 setSelectedTableDetail={setSelectedTableDetail}
                 updateItemStatus={updateItemStatus}
