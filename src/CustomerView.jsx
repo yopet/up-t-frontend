@@ -254,7 +254,8 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
   // ─── STATE PEDIDOS ────────────────────────────────────────────────────────
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedMesa, setSelectedMesa] = useState(() => {
-    return localStorage.getItem("up_t_selected_mesa") || null;
+    const saved = localStorage.getItem("up_t_selected_mesa");
+    return saved ? parseInt(saved) : null;
   });
   const [cart, setCart] = useState([]);
   const [showMesaError, setShowMesaError] = useState(false);
@@ -276,8 +277,8 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
   }, [establishmentId]);
 
   useEffect(() => {
-    if (selectedMesa) {
-      localStorage.setItem("up_t_selected_mesa", selectedMesa);
+    if (selectedMesa !== null) {
+      localStorage.setItem("up_t_selected_mesa", String(selectedMesa));
     }
   }, [selectedMesa]);
 
@@ -584,41 +585,40 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
 
   const addToCart = (drink) => setCart([...cart, drink]);
   const cartTotal = cart.reduce((acc, curr) => acc + curr.price, 0);
-  const handleEnviarPedido = async () => {
-    if (!selectedMesa) { setShowMesaError(true); return; }
-    if (cart.length === 0) { setToast("🛒 Carrito vacío"); return; }
+   const handleEnviarPedido = async () => {
+     if (!selectedMesa) { setShowMesaError(true); return; }
+     if (cart.length === 0) { setToast("🛒 Carrito vacío"); return; }
 
-    const orderData = {
-      mesa: selectedMesa,
-      items: cart.map(item => ({ id: item.id, name: item.name, price: item.price })),
-      total: cartTotal,
-      establishment_id: establishmentId,
-      status: 'pending'
-    };
+     const orderData = {
+       mesa: selectedMesa,
+       items: cart.map(item => ({ id: item.id, name: item.name, price: item.price })),
+       total: cartTotal,
+       establishment_id: establishmentId,
+       status: 'pending'
+     };
 
-    try {
-      const { data: newOrder, error } = await supabase.from('drink_orders').insert([orderData]).select().single();
-      if (error) throw error;
-      
-      // Guardar ID para seguimiento
-      const savedIds = JSON.parse(localStorage.getItem("up_t_my_order_ids") || "[]");
-      const updatedIds = [newOrder.id, ...savedIds].slice(0, 10);
-      localStorage.setItem("up_t_my_order_ids", JSON.stringify(updatedIds));
-      setMyOrders(prev => [newOrder, ...prev]);
+     try {
+       const { data: newOrder, error } = await supabase.from('drink_orders').insert([orderData]).select().single();
+       if (error) throw error;
+       
+       // Guardar ID para seguimiento
+       const savedIds = JSON.parse(localStorage.getItem("up_t_my_order_ids") || "[]");
+       const updatedIds = [newOrder.id, ...savedIds].slice(0, 10);
+       localStorage.setItem("up_t_my_order_ids", JSON.stringify(updatedIds));
+       setMyOrders(prev => [newOrder, ...prev]);
 
-      const updatedRecent = [orderData, ...recentOrders].slice(0, 5);
-      setRecentOrders(updatedRecent);
-      localStorage.setItem("up_t_recent_orders", JSON.stringify(updatedRecent));
+       const updatedRecent = [orderData, ...recentOrders].slice(0, 5);
+       setRecentOrders(updatedRecent);
+       localStorage.setItem("up_t_recent_orders", JSON.stringify(updatedRecent));
 
-      setToast(`Pedido enviado a la Mesa ${selectedMesa} ✨`);
-      setShowOrderModal(false);
-      setCart([]);
-      setSelectedMesa(null);
-    } catch (err) {
-      console.error("Error sending order:", err);
-      setToast("Error al enviar pedido");
-    }
-  };
+       setToast(`Pedido enviado a la Mesa ${selectedMesa} ✨`);
+       setShowOrderModal(false);
+       setCart([]);
+     } catch (err) {
+       console.error("Error sending order:", err);
+       setToast("Error al enviar pedido");
+     }
+   };
 
   const repeatOrder = (order) => {
     setCart(order.items);
@@ -655,6 +655,7 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
           alignItems: "center", gap: 32, animation: "modalIn 0.4s ease",
         }}>
           <div style={{ textAlign: "center" }}>
+            <img src="/logo.png" style={{ width: 64, height: 64, borderRadius: '50%', marginBottom: 16, objectFit: 'cover' }} alt="Logo" />
             <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.22em", textTransform: "uppercase", marginBottom: 10 }}>
               Up-T · Gastrobar
             </div>
@@ -745,7 +746,10 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
         background: bg, zIndex: 10, borderBottom: `1px solid ${border}`,
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-          <div style={{ fontSize: 10, color: muted, letterSpacing: "0.14em", fontWeight: 600 }}>GASTROBAR</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <img src="/logo.png" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover' }} alt="Logo" />
+            <div style={{ fontSize: 10, color: muted, letterSpacing: "0.14em", fontWeight: 600 }}>GASTROBAR</div>
+          </div>
           {/* Indicador sutil de fuente — útil para debug, puedes quitarlo en prod */}
           {searchSource && (
             <span style={{ fontSize: 9, color: muted2, letterSpacing: "0.08em" }}>
@@ -939,11 +943,23 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
         }}>
           {/* HEADER */}
           <div style={{ display: "flex", alignItems: "center", padding: "20px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-            <button onClick={() => setShowOrderModal(false)} style={{ background: "none", border: "none", color: "#fff", fontSize: 24, cursor: "pointer", marginRight: 16 }}>←</button>
+            <button onClick={() => setShowOrderModal(false)} style={{ background: "none", border: "none", color: "#fff", fontSize: 24, cursor: "pointer", marginRight: 16 }}>×</button>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 18, fontWeight: "bold", color: "#fff" }}>Mesa {selectedMesa || "..."}</div>
-              <div style={{ fontSize: 12, color: muted }}>{selectedMesa ? "Gestión de pedido en curso" : "Selecciona tu mesa para comenzar"}</div>
+              <div style={{ fontSize: 18, fontWeight: "bold", color: "#fff" }}>
+                {selectedMesa ? `Pedidos - Mesa ${selectedMesa}` : "Selecciona tu mesa"}
+              </div>
+              <div style={{ fontSize: 12, color: muted }}>
+                {selectedMesa ? "Gestión de pedido en curso" : "Selecciona tu mesa para comenzar"}
+              </div>
             </div>
+            {selectedMesa && (
+              <button 
+                onClick={() => setSelectedMesa(null)}
+                style={{ background: "none", border: "none", color: muted, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+              >
+                Cambiar
+              </button>
+            )}
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "16px", paddingBottom: 120 }}>
@@ -991,78 +1007,75 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
               </div>
             )}
 
-            {/* SECCIÓN 2: AGREGAR AL PEDIDO (ACORDEÓN) */}
-            <details open={!selectedMesa} style={{ marginBottom: 20 }}>
-              <summary style={{ listStyle: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0" }}>
-                <span style={{ fontSize: 15, fontWeight: "bold", color: "#fff" }}>➕ Agregar al pedido</span>
-                <span style={{ color: muted }}>▼</span>
-              </summary>
-              
-              <div style={{ padding: "12px 0" }}>
-                {/* SELECTOR DE MESA */}
-                <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontSize: 13, color: muted, marginBottom: 12 }}>📍 ¿En qué mesa estás?</div>
-                  <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 10, scrollbarWidth: "none" }}>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map(m => (
-                      <div 
-                        key={m}
-                        onClick={() => { 
-                          setSelectedMesa(m); 
-                          setShowMesaError(false);
-                          if (pendingSongAfterMesa) {
-                            addToQueue(pendingSongAfterMesa, m);
-                            setPendingSongAfterMesa(null);
-                          }
-                          if (pendingMsgAfterMesa) {
-                            handleSendMsg(m);
-                            setPendingMsgAfterMesa(false);
-                          }
-                        }}
-                        style={{
-                          flexShrink: 0, width: 80, height: 40, borderRadius: 25, 
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          background: selectedMesa === m ? "rgba(29,185,84,0.2)" : "rgba(255,255,255,0.05)",
-                          border: `2px solid ${selectedMesa === m ? "#1db954" : "transparent"}`,
-                          color: selectedMesa === m ? "#1db954" : "#fff",
-                          fontWeight: 700, cursor: "pointer", transition: "0.2s"
-                        }}
-                      >
-                        Mesa {m}
-                      </div>
-                    ))}
-                  </div>
-                  {showMesaError && <div style={{ color: "#E24B4A", fontSize: 11, marginTop: 8 }}>⚠️ Selecciona tu mesa primero</div>}
-                </div>
-
-                {/* CUADRÍCULA DE BEBIDAS */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                  {drinks.map(drink => (
-                    <div key={drink.id} style={{ background: surface, borderRadius: 18, overflow: "hidden", border: `1px solid ${border}` }}>
-                      <div style={{ position: "relative", height: 120 }}>
-                        <img src={drink.img} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
-                        <div style={{ position: "absolute", bottom: 8, left: 8, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", padding: "4px 8px", borderRadius: 8, fontSize: 11, fontWeight: 700, color: "#fff" }}>
-                          ${drink.price.toLocaleString()}
-                        </div>
-                      </div>
-                      <div style={{ padding: 12 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "#fff", height: 32, overflow: "hidden", marginBottom: 10 }}>{drink.name}</div>
-                        <button 
-                          onClick={() => {
-                            setCart([...cart, drink]);
-                            setToast(`+ ${drink.name}`);
-                          }}
-                          style={{ width: "100%", padding: "8px", borderRadius: 10, border: `1px solid ${border}`, background: "transparent", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
-                          onMouseEnter={e => e.currentTarget.style.borderColor = "#1db954"}
-                          onMouseLeave={e => e.currentTarget.style.borderColor = border}
-                        >
-                          + Agregar
-                        </button>
-                      </div>
+             {/* SECCIÓN 2: SELECCIONAR MESA (solo si no hay mesa activa) */}
+            {!selectedMesa && (
+              <div style={{ background: surface, borderRadius: 20, padding: 20, border: `1px solid ${border}`, marginBottom: 24 }}>
+                <div style={{ fontSize: 13, color: muted, marginBottom: 12 }}>📍 ¿En qué mesa estás?</div>
+                <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 10, scrollbarWidth: "none" }}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map(m => (
+                    <div 
+                      key={m}
+                      onClick={() => { 
+                        setSelectedMesa(m); 
+                        setShowMesaError(false);
+                        if (pendingSongAfterMesa) {
+                          addToQueue(pendingSongAfterMesa, m);
+                          setPendingSongAfterMesa(null);
+                        }
+                        if (pendingMsgAfterMesa) {
+                          handleSendMsg(m);
+                          setPendingMsgAfterMesa(false);
+                        }
+                      }}
+                      style={{
+                        flexShrink: 0, width: 80, height: 40, borderRadius: 25, 
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        background: "rgba(29,185,84,0.2)", border: "2px solid #1db954",
+                        color: "#1db954", fontWeight: 700, cursor: "pointer", transition: "0.2s"
+                      }}
+                    >
+                      Mesa {m}
                     </div>
                   ))}
                 </div>
+                {showMesaError && <div style={{ color: "#E24B4A", fontSize: 11, marginTop: 8 }}>⚠️ Selecciona tu mesa primero</div>}
               </div>
-            </details>
+            )}
+
+            {/* SECCIÓN 3: AGREGAR AL PEDIDO (SIEMPRE VISIBLE) */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${border}`, marginBottom: 16 }}>
+                <span style={{ fontSize: 15, fontWeight: "bold", color: "#fff" }}>🍺 Bebidas disponibles</span>
+                {selectedMesa && <span style={{ fontSize: 12, color: "#1db954", fontWeight: 600 }}>Mesa {selectedMesa}</span>}
+              </div>
+              
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                {drinks.map(drink => (
+                  <div key={drink.id} style={{ background: surface, borderRadius: 18, overflow: "hidden", border: `1px solid ${border}` }}>
+                    <div style={{ position: "relative", height: 120 }}>
+                      <img src={drink.img} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
+                      <div style={{ position: "absolute", bottom: 8, left: 8, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", padding: "4px 8px", borderRadius: 8, fontSize: 11, fontWeight: 700, color: "#fff" }}>
+                        ${drink.price.toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={{ padding: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "#fff", height: 32, overflow: "hidden", marginBottom: 10 }}>{drink.name}</div>
+                      <button 
+                        onClick={() => {
+                          setCart([...cart, drink]);
+                          setToast(`+ ${drink.name}`);
+                        }}
+                        style={{ width: "100%", padding: "8px", borderRadius: 10, border: `1px solid ${border}`, background: "transparent", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = "#1db954"}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = border}
+                      >
+                        + Agregar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             {/* SECCIÓN 3: HISTORIAL */}
             <details style={{ marginTop: 20 }}>

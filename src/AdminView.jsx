@@ -139,24 +139,24 @@ const IconAd = () => (
     <line x1="7" y1="7" x2="7.01" y2="7" />
   </svg>
 );
-const IconPlaySmall = () => (
-  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M8 5v14l11-7z" />
+const IconBarChart = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="20" x2="12" y2="10" />
+    <line x1="18" y1="20" x2="18" y2="4" />
+    <line x1="6" y1="20" x2="6" y2="16" />
   </svg>
 );
 const IconHome = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    <polyline points="9 22 9 12 15 12 15 22" />
   </svg>
 );
 const IconMusic = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-  </svg>
-);
-const IconMessage = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 18V5l12-2v13" />
+    <circle cx="6" cy="18" r="3" />
+    <circle cx="18" cy="16" r="3" />
   </svg>
 );
 const IconSettings = () => (
@@ -204,40 +204,10 @@ const styles = {
   actionBtn: { border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.15s', flexShrink: 0 },
 };
 
-const SidebarStats = ({ queue, clientStats, approvedMessagesCount, screenMessages, ads, credits, lowCredit }) => (
-  <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 12, borderBottom: `0.5px solid ${C.border}` }}>
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-      <div style={{ background: '#0d0d0d', padding: '10px', borderRadius: 10, border: `0.5px solid ${C.border2}` }}>
-        <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, letterSpacing: '0.05em' }}>CANCIONES</div>
-        <div style={{ fontSize: 18, fontWeight: 800, color: C.green, margin: '2px 0' }}>{queue.filter(s => s.isApproved).length}</div>
-        <div style={{ fontSize: 8, color: C.muted }}>{clientStats.pending} pendientes</div>
-      </div>
-      <div style={{ background: '#0d0d0d', padding: '10px', borderRadius: 10, border: `0.5px solid ${C.border2}` }}>
-        <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, letterSpacing: '0.05em' }}>MENSAJES</div>
-        <div style={{ fontSize: 18, fontWeight: 800, color: C.blue, margin: '2px 0' }}>{approvedMessagesCount}</div>
-        <div style={{ fontSize: 8, color: C.muted }}>{screenMessages.length} moderar</div>
-      </div>
-      <div style={{ background: '#0d0d0d', padding: '10px', borderRadius: 10, border: `0.5px solid ${C.border2}` }}>
-        <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, letterSpacing: '0.05em' }}>PUBLICIDAD</div>
-        <div style={{ fontSize: 18, fontWeight: 800, color: C.amber, margin: '2px 0' }}>{ads.length}</div>
-        <div style={{ fontSize: 8, color: C.muted }}>Anuncios activos</div>
-      </div>
-      <div style={{ background: '#0d0d0d', padding: '10px', borderRadius: 10, border: `0.5px solid ${C.border2}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-          <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, letterSpacing: '0.05em' }}>CRÉDITOS</div>
-          <button
-            onClick={() => window.open('https://wa.me/tu_numero', '_blank')}
-            style={{ background: C.green, color: '#000', border: 'none', borderRadius: 4, padding: '2px 6px', fontSize: 7, fontWeight: 800, cursor: 'pointer' }}
-          >
-            RECARGAR
-          </button>
-        </div>
-        <div style={{ fontSize: 18, fontWeight: 800, color: credits <= lowCredit ? C.red : C.green, margin: '2px 0' }}>{credits}</div>
-        <div style={{ fontSize: 8, color: C.muted }}>Saldo disponible</div>
-      </div>
-    </div>
-  </div>
-);
+
+
+
+
 
 const OrderPanel = ({
   orders,
@@ -606,6 +576,142 @@ const OrderPanel = ({
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+const ReportesPanel = ({ C, queue, clientStats, screenMessages, ads, orders, credits, lowCredit }) => {
+  const totalPendingSongs = clientStats?.pending || 0;
+  const totalApprovedSongs = queue?.filter(s => s.isApproved).length || 0;
+  const totalMessagesPending = screenMessages?.filter(m => m.status === 'pending').length || 0;
+  const totalMessagesApproved = screenMessages?.filter(m => m.status === 'approved').length || 0;
+  const totalAds = ads?.length || 0;
+  const totalPendingOrders = orders?.filter(o => o.status === 'pending').length || 0;
+  const totalCompletedOrders = orders?.filter(o => o.status === 'completed').length || 0;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ fontSize: 24, fontWeight: 800, color: '#fff', marginBottom: 8 }}>
+        📊 Reportes
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+        {/* MÚSICA */}
+        <div style={{ background: C.panel, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 16 }}>MÚSICA</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 10, color: C.green, fontWeight: 600, marginBottom: 4 }}>Aprobadas</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: '#fff' }}>{totalApprovedSongs}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: C.amber, fontWeight: 600, marginBottom: 4 }}>Pendientes</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: '#fff' }}>{totalPendingSongs}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* MENSAJES */}
+        <div style={{ background: C.panel, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 16 }}>MENSAJES</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 10, color: C.blue, fontWeight: 600, marginBottom: 4 }}>Aprobados</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: '#fff' }}>{totalMessagesApproved}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: C.red, fontWeight: 600, marginBottom: 4 }}>Pendientes</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: '#fff' }}>{totalMessagesPending}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* PEDIDOS */}
+        <div style={{ background: C.panel, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 16 }}>PEDIDOS</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 10, color: C.green, fontWeight: 600, marginBottom: 4 }}>Completados</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: '#fff' }}>{totalCompletedOrders}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: C.amber, fontWeight: 600, marginBottom: 4 }}>Pendientes</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: '#fff' }}>{totalPendingOrders}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* PUBLICIDAD */}
+        <div style={{ background: C.panel, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 16 }}>PUBLICIDAD</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 40, fontWeight: 900, color: C.amber }}>{totalAds}</div>
+            <div style={{ fontSize: 12, color: C.muted }}>anuncios<br />activos</div>
+          </div>
+        </div>
+
+        {/* CRÉDITOS */}
+        <div style={{ background: C.panel, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 16 }}>CRÉDITOS</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 28, fontWeight: 900, color: credits <= lowCredit ? C.red : C.green }}>
+                ${credits.toLocaleString()}
+              </div>
+              {credits <= lowCredit && (
+                <div style={{ fontSize: 10, color: C.red, fontWeight: 700, background: 'rgba(255,0,0,0.1)', padding: '2px 8px', borderRadius: 4 }}>BAJO</div>
+              )}
+            </div>
+            <button
+              onClick={() => window.open('https://wa.me/tu_numero', '_blank')}
+              style={{ 
+                background: C.green, 
+                color: '#000', 
+                border: 'none', 
+                borderRadius: 8, 
+                padding: '10px 16px', 
+                fontSize: 12, 
+                fontWeight: 800, 
+                cursor: 'pointer',
+                width: 'fit-content'
+              }}
+            >
+              📞 Recargar
+            </button>
+          </div>
+        </div>
+
+        {/* RESUMEN */}
+        <div style={{ background: C.panel, borderRadius: 16, padding: 20, border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 16 }}>RESUMEN</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: C.muted }}>Total pedidos</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>{orders.length}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: C.muted }}>Mensajes totales</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>{screenMessages.length}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: C.muted }}>Canciones aprobadas</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>{totalApprovedSongs}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: C.muted }}>Publicidad activa</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>{totalAds}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Gráfico de tendencia opcional */}
+      <div style={{ background: C.panel, borderRadius: 16, padding: 24, border: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 16 }}>ACTIVIDAD RECIENTE</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 120, color: C.muted, fontSize: 12 }}>
+          📈 Gráfico de actividad (próximamente)
+        </div>
+      </div>
     </div>
   );
 };
@@ -1195,7 +1301,7 @@ export default function AdminView({
       <aside style={{ width: 240, background: C.panel, borderRight: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
         <div style={{ padding: '24px', borderBottom: `0.5px solid ${C.border}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <div style={{ width: 10, height: 10, background: C.green, borderRadius: '50%', boxShadow: `0 0 10px ${C.green}60` }} />
+            <img src="/logo.png" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} alt="Logo" />
             <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.04em' }}>
               Up-Track
             </span>
@@ -1203,18 +1309,9 @@ export default function AdminView({
           <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: '0.1em' }}>PRO MANAGEMENT</div>
         </div>
 
-        <SidebarStats
-          queue={queue}
-          clientStats={clientStats}
-          approvedMessagesCount={approvedMessagesCount}
-          screenMessages={screenMessages}
-          ads={ads}
-          credits={credits}
-          lowCredit={lowCredit}
-        />
-
         <nav style={{ flex: 1, padding: '20px 12px', overflowY: 'auto' }}>
           <SidebarItem icon={IconHome} label="Pedidos" tabId="dashboard" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SidebarItem icon={IconBarChart} label="Reportes" tabId="reportes" activeTab={activeTab} setActiveTab={setActiveTab} />
           <SidebarItem icon={IconMusic} label="Reproducción" tabId="queue" activeTab={activeTab} setActiveTab={setActiveTab} />
           <SidebarItem icon={IconAd} label="Publicidad" tabId="ads" activeTab={activeTab} setActiveTab={setActiveTab} />
           <div style={{ margin: '16px 16px 8px', fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: '0.1em' }}>SISTEMA</div>
@@ -1291,9 +1388,25 @@ export default function AdminView({
         {/* ── CONTENIDO SCROLLABLE ───────────────────────────────────────────── */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px', boxSizing: 'border-box', background: '#080808' }}>
 
+          {/* REPORTES VIEW */}
+          {activeTab === 'reportes' && (
+            <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+              <ReportesPanel
+                C={C}
+                queue={queue}
+                clientStats={clientStats}
+                screenMessages={screenMessages}
+                ads={ads}
+                orders={orders}
+                credits={credits}
+                lowCredit={lowCredit}
+              />
+            </div>
+          )}
+
           {/* DASHBOARD VIEW - PEDIDOS */}
           {activeTab === 'dashboard' && (
-            <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+            <div style={{ maxWidth: 1200, margin: '0 auto' }}>
               <OrderPanel
                 orders={orders}
                 handleOrderAction={handleOrderAction}
