@@ -530,6 +530,7 @@ const OrderPanel = ({
         })}
       </div>
 
+
       {/* MODAL PEDIDO MANUAL */}
       {showManualOrder && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
