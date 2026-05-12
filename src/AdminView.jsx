@@ -551,24 +551,33 @@ const OrderPanel = ({
                     <div style={{ fontSize: 11, fontWeight: 600, height: 26, overflow: 'hidden' }}>{d.name}</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
                       <div style={{ fontSize: 11, fontWeight: 800, color: C.green }}>${d.price.toLocaleString()}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(0,0,0,0.2)', borderRadius: 20, padding: '2px 6px', border: `1px solid ${C.border2}` }}>
-                        <button 
-                          onClick={() => {
-                            const idx = manualCart.findLastIndex(it => it.id === d.id);
-                            if (idx !== -1) {
-                              const next = [...manualCart];
-                              next.splice(idx, 1);
-                              setManualCart(next);
-                            }
-                          }}
-                          style={{ background: 'none', border: 'none', color: count > 0 ? '#fff' : C.muted, fontSize: 16, cursor: 'pointer', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-                        >-</button>
-                        <span style={{ fontSize: 12, fontWeight: 800, minWidth: 14, textAlign: 'center', color: count > 0 ? C.green : C.muted }}>{count}</span>
+                      {count === 0 ? (
                         <button 
                           onClick={() => setManualCart([...manualCart, d])}
-                          style={{ background: 'none', border: 'none', color: C.green, fontSize: 16, cursor: 'pointer', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-                        >+</button>
-                      </div>
+                          style={{ background: C.green, color: '#000', border: 'none', borderRadius: 20, padding: '4px 12px', fontSize: 10, fontWeight: 800, cursor: 'pointer' }}
+                        >
+                          AGREGAR
+                        </button>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(0,0,0,0.2)', borderRadius: 20, padding: '2px 6px', border: `1px solid ${C.green}50` }}>
+                          <button 
+                            onClick={() => {
+                              const idx = manualCart.findLastIndex(it => it.id === d.id);
+                              if (idx !== -1) {
+                                const next = [...manualCart];
+                                next.splice(idx, 1);
+                                setManualCart(next);
+                              }
+                            }}
+                            style={{ background: 'none', border: 'none', color: '#fff', fontSize: 16, cursor: 'pointer', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                          >-</button>
+                          <span style={{ fontSize: 12, fontWeight: 800, minWidth: 14, textAlign: 'center', color: C.green }}>{count}</span>
+                          <button 
+                            onClick={() => setManualCart([...manualCart, d])}
+                            style={{ background: 'none', border: 'none', color: C.green, fontSize: 16, cursor: 'pointer', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                          >+</button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
