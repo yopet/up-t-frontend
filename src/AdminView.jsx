@@ -144,6 +144,27 @@ const IconPlaySmall = () => (
     <path d="M8 5v14l11-7z" />
   </svg>
 );
+const IconHome = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+  </svg>
+);
+const IconMusic = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
+  </svg>
+);
+const IconMessage = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);
+const IconSettings = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
 
 // ─── BADGE DE NUEVA CANCIÓN ───────────────────────────────────────────────────
 function NewBadge({ track, onDone }) {
@@ -171,6 +192,541 @@ function NewBadge({ track, onDone }) {
   );
 }
 
+// ─── ESTILOS Y COMPONENTES REUTILIZABLES ─────────────────────────────────────
+const C = {
+  bg: '#0f0f0f', panel: '#161616', panel2: '#1c1c1c', border: '#222', border2: '#2a2a2a',
+  text: '#d8d8d8', muted: '#555', green: '#1DB954', amber: '#EF9F27', red: '#E24B4A', blue: '#85B7EB',
+};
+
+const styles = {
+  panel: { background: C.panel, borderRadius: 10, border: `0.5px solid ${C.border}`, padding: '16px' },
+  sectionLabel: { fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 },
+  actionBtn: { border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.15s', flexShrink: 0 },
+};
+
+const SidebarStats = ({ queue, clientStats, approvedMessagesCount, screenMessages, ads, credits, lowCredit }) => (
+  <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 12, borderBottom: `0.5px solid ${C.border}` }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div style={{ background: '#0d0d0d', padding: '10px', borderRadius: 10, border: `0.5px solid ${C.border2}` }}>
+        <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, letterSpacing: '0.05em' }}>CANCIONES</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: C.green, margin: '2px 0' }}>{queue.filter(s => s.isApproved).length}</div>
+        <div style={{ fontSize: 8, color: C.muted }}>{clientStats.pending} pendientes</div>
+      </div>
+      <div style={{ background: '#0d0d0d', padding: '10px', borderRadius: 10, border: `0.5px solid ${C.border2}` }}>
+        <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, letterSpacing: '0.05em' }}>MENSAJES</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: C.blue, margin: '2px 0' }}>{approvedMessagesCount}</div>
+        <div style={{ fontSize: 8, color: C.muted }}>{screenMessages.length} moderar</div>
+      </div>
+      <div style={{ background: '#0d0d0d', padding: '10px', borderRadius: 10, border: `0.5px solid ${C.border2}` }}>
+        <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, letterSpacing: '0.05em' }}>PUBLICIDAD</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: C.amber, margin: '2px 0' }}>{ads.length}</div>
+        <div style={{ fontSize: 8, color: C.muted }}>Anuncios activos</div>
+      </div>
+      <div style={{ background: '#0d0d0d', padding: '10px', borderRadius: 10, border: `0.5px solid ${C.border2}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+          <div style={{ fontSize: 8, color: C.muted, fontWeight: 700, letterSpacing: '0.05em' }}>CRÉDITOS</div>
+          <button
+            onClick={() => window.open('https://wa.me/tu_numero', '_blank')}
+            style={{ background: C.green, color: '#000', border: 'none', borderRadius: 4, padding: '2px 6px', fontSize: 7, fontWeight: 800, cursor: 'pointer' }}
+          >
+            RECARGAR
+          </button>
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: credits <= lowCredit ? C.red : C.green, margin: '2px 0' }}>{credits}</div>
+        <div style={{ fontSize: 8, color: C.muted }}>Saldo disponible</div>
+      </div>
+    </div>
+  </div>
+);
+
+const OrderPanel = ({ 
+  orders, 
+  handleOrderAction, 
+  selectedTableDetail, 
+  setSelectedTableDetail, 
+  updateItemStatus, 
+  cancelItem,
+  queue = [],
+  screenMessages = [],
+  handleApproveSong,
+  handleMessageAction,
+  establishmentId
+}) => {
+  const [showManualOrder, setShowManualOrder] = useState(null); // table number
+  const [manualCart, setManualCart] = useState([]);
+
+  const drinks = [
+    { id: 1, name: "Cerveza Club Colombia", price: 8000, img: "https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=400&q=80" },
+    { id: 2, name: "Aguardiente Antioqueño", price: 95000, img: "https://images.unsplash.com/photo-1569701813229-33284b643e3c?w=400&q=80" },
+    { id: 3, name: "Ron Medellín 8 Años", price: 85000, img: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=400&q=80" },
+    { id: 4, name: "Vodka Absolut", price: 120000, img: "https://images.unsplash.com/photo-1550985543-575662704043?w=400&q=80" },
+    { id: 5, name: "Vino Tinto Reserva", price: 110000, img: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=400&q=80" },
+    { id: 6, name: "Agua Manantial", price: 5000, img: "https://images.unsplash.com/photo-1559839914-17aae19cea9e?w=400&q=80" },
+  ];
+
+  const handleSendManualOrder = async () => {
+    if (manualCart.length === 0) return;
+    const total = manualCart.reduce((a, b) => a + b.price, 0);
+    const orderData = {
+      mesa: String(showManualOrder),
+      items: manualCart.map(it => ({ id: it.id, name: it.name, price: it.price })),
+      total: total,
+      establishment_id: establishmentId,
+      status: 'pending'
+    };
+    const { error } = await supabase.from('drink_orders').insert([orderData]);
+    if (!error) {
+      setShowManualOrder(null);
+      setManualCart([]);
+    }
+  };
+
+  const activeOrders = orders.filter(o => o.status === 'pending' || o.status === 'completed');
+  
+  // Agrupar todo por mesa
+  const tableGroups = {};
+
+  const ensureMesa = (m) => {
+    if (!tableGroups[m]) tableGroups[m] = { mesa: m, items: [], total: 0, orderIds: [], songs: [], messages: [] };
+  };
+
+  // 1. Pedidos de bebidas (Pendientes y Completados)
+  activeOrders.forEach(curr => {
+    ensureMesa(curr.mesa);
+    curr.items.forEach((it, idx) => {
+      tableGroups[curr.mesa].items.push({ ...it, orderId: curr.id, itemIdx: idx, type: 'drink' });
+    });
+    tableGroups[curr.mesa].total += curr.total;
+    tableGroups[curr.mesa].orderIds.push(curr.id);
+  });
+
+  // 2. Canciones (Pendientes y Aprobadas)
+  queue.filter(s => s.is_cliente && s.mesa).forEach(song => {
+    ensureMesa(song.mesa);
+    tableGroups[song.mesa].songs.push(song);
+  });
+
+  // 3. Mensajes (Pendientes, Aprobados y Mostrados)
+  screenMessages.filter(m => (m.status === 'pending' || m.status === 'approved' || m.status === 'displayed') && m.mesa).forEach(msg => {
+    ensureMesa(msg.mesa);
+    tableGroups[msg.mesa].messages.push(msg);
+  });
+
+  const mesas = ["1", "2", "3", "4", "5", "6", "7", "8"];
+
+  if (selectedTableDetail) {
+    const detail = tableGroups[selectedTableDetail] || { mesa: selectedTableDetail, items: [], total: 0, orderIds: [], songs: [], messages: [] };
+    return (
+      <div style={{ ...styles.panel, padding: 0, overflow: 'hidden' }}>
+        {/* HEADER DETALLE */}
+        <div style={{ padding: '20px 24px', background: C.panel2, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 16 }}>
+          <button onClick={() => setSelectedTableDetail(null)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer' }}>←</button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>Mesa {selectedTableDetail} · Detalle del pedido</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+              <span style={{ fontSize: 9, fontWeight: 800, color: C.amber, background: 'rgba(239,159,39,0.1)', padding: '2px 8px', borderRadius: 4 }}>EN COCINA</span>
+            </div>
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: C.green }}>${detail.total.toLocaleString()}</div>
+        </div>
+
+        {/* CONTENIDO DEL DETALLE */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+          
+                {/* 1. CANCIONES */}
+                {detail.songs.length > 0 && (
+                  <div style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 10, color: C.green, fontWeight: 700, marginBottom: 12, letterSpacing: '0.05em' }}>🎶 SOLICITUDES DE MÚSICA</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {detail.songs.map((song) => (
+                        <div key={song.queueRowId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'rgba(29,185,84,0.05)', borderRadius: 12, border: `1px solid ${C.green}30`, opacity: song.isApproved ? 0.6 : 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <img src={song.img} style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover' }} alt="" />
+                            <div>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: '#fff', textDecoration: song.isApproved ? 'line-through' : 'none' }}>{song.title}</div>
+                              <div style={{ fontSize: 10, color: C.muted }}>{song.artist}</div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            {!song.isApproved ? (
+                              <>
+                                <button onClick={() => handleApproveSong(song)} style={{ padding: '6px 12px', borderRadius: 8, background: C.green, border: 'none', color: '#000', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Aprobar</button>
+                                <button onClick={() => cancelItem(null, null, song.queueRowId, 'song')} style={{ padding: '6px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${C.red}`, color: C.red, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>X</button>
+                              </>
+                            ) : (
+                              <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>✓ Aprobada</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. MENSAJES */}
+                {detail.messages.length > 0 && (
+                  <div style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 10, color: '#00c9ff', fontWeight: 700, marginBottom: 12, letterSpacing: '0.05em' }}>✉️ MENSAJES DEDICATORIAS</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {detail.messages.map((msg) => (
+                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px', background: 'rgba(0,201,255,0.05)', borderRadius: 12, border: `1px solid #00c9ff30`, opacity: msg.status !== 'pending' ? 0.6 : 1 }}>
+                          <div style={{ fontSize: 11, color: C.muted, fontStyle: 'italic', textDecoration: msg.status !== 'pending' ? 'line-through' : 'none' }}>"{msg.text}"</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 10, color: '#00c9ff', fontWeight: 600 }}>— {msg.author}</span>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              {msg.status === 'pending' ? (
+                                <>
+                                  <button onClick={() => handleMessageAction(msg.id, 'approved')} style={{ padding: '4px 10px', borderRadius: 6, background: '#00c9ff', border: 'none', color: '#000', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>Publicar</button>
+                                  <button onClick={() => handleMessageAction(msg.id, 'rejected')} style={{ padding: '4px 10px', borderRadius: 6, background: 'transparent', border: `1px solid ${C.red}`, color: C.red, fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>X</button>
+                                </>
+                              ) : (
+                                <span style={{ fontSize: 10, color: '#00c9ff', fontWeight: 600 }}>✓ Publicado</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. BEBIDAS */}
+                {detail.items.length > 0 && (
+                  <div style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, marginBottom: 12, letterSpacing: '0.05em' }}>BEBIDAS Y PRODUCTOS</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {detail.items.map((it, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: 12, border: `1px solid ${C.border2}` }}>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: it.status === 'completed' ? C.muted : '#fff', textDecoration: it.status === 'completed' ? 'line-through' : 'none' }}>
+                              {it.name} <span style={{ color: C.green, marginLeft: 4 }}>x1</span>
+                            </div>
+                            <div style={{ fontSize: 11, color: C.muted }}>${it.price.toLocaleString()}</div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            {it.status !== 'completed' ? (
+                              <>
+                                <button onClick={() => updateItemStatus(it.orderId, it.itemIdx, 'completed')} style={{ padding: '6px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${C.green}`, color: C.green, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Entregar</button>
+                                <button onClick={() => cancelItem(it.orderId, it.itemIdx)} style={{ padding: '6px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${C.red}`, color: C.red, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                              </>
+                            ) : (
+                              <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>✓ Entregado</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+        </div>
+
+        {/* FOOTER TOTAL */}
+        <div style={{ padding: '24px', background: 'rgba(0,0,0,0.2)', borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 14, color: C.muted }}>Total Mesa {selectedTableDetail}:</span>
+            <span style={{ fontSize: 20, fontWeight: 900, color: C.green }}>${detail.total.toLocaleString()}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button 
+              onClick={async () => {
+                for(const id of detail.orderIds) await handleOrderAction(id, 'completed');
+                setSelectedTableDetail(null);
+              }}
+              style={{ flex: 2, background: C.green, color: '#000', border: 'none', borderRadius: 10, padding: '14px', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}
+            >
+              Entregar mesa completa
+            </button>
+            <button 
+              onClick={async () => {
+                if(confirm('¿Cancelar pedido completo?')) {
+                  for(const id of detail.orderIds) await handleOrderAction(id, 'cancelled');
+                  setSelectedTableDetail(null);
+                }
+              }}
+              style={{ flex: 1, background: 'transparent', color: C.red, border: `1px solid ${C.red}`, borderRadius: 10, padding: '14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Cancelar pedido
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.panel}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div style={{ ...styles.sectionLabel, color: C.green, marginBottom: 0 }}>Gestión de Mesas</div>
+        <div style={{ fontSize: 11, color: C.muted }}>{mesas.filter(m => tableGroups[m]?.items.some(it => it.status === 'pending')).length} mesas activas</div>
+      </div>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+        {mesas.map(m => {
+          const group = tableGroups[m] || { items: [], songs: [], messages: [], total: 0 };
+          const pendingItems = group.items.filter(it => it.status === 'pending');
+          const hasActivity = group.items.length > 0 || group.songs.length > 0 || group.messages.length > 0;
+
+          return (
+            <div 
+              key={m} 
+              onClick={() => hasActivity && setSelectedTableDetail(m)}
+              style={{ 
+                background: C.panel2, 
+                borderRadius: 14, 
+                border: `1px solid ${hasActivity ? C.green + '40' : C.border}`, 
+                padding: 16,
+                cursor: hasActivity ? 'pointer' : 'default',
+                transition: '0.2s',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                minHeight: 140,
+                boxShadow: hasActivity ? `0 4px 20px ${C.green}10` : 'none'
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: hasActivity ? C.green : C.panel, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: hasActivity ? '#000' : C.muted, fontSize: 12 }}>{m}</div>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>MESA {m}</span>
+                  </div>
+                  {hasActivity && <div style={{ width: 6, height: 6, background: C.green, borderRadius: '50%', boxShadow: `0 0 8px ${C.green}` }} />}
+                </div>
+
+                {hasActivity ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ fontSize: 11, color: C.muted }}>{pendingItems.length} pendientes</div>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                      {group.songs.length > 0 && <span style={{ fontSize: 11 }}>🎶{group.songs.length}</span>}
+                      {group.messages.length > 0 && <span style={{ fontSize: 11 }}>✉️{group.messages.length}</span>}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: C.green, marginTop: 4 }}>${group.total.toLocaleString()}</div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: C.muted, fontStyle: 'italic', marginTop: 8 }}>Mesa libre</div>
+                )}
+              </div>
+
+              <button 
+                onClick={(e) => { e.stopPropagation(); setShowManualOrder(m); }}
+                style={{ 
+                  marginTop: 14,
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: 8,
+                  background: hasActivity ? 'rgba(255,255,255,0.05)' : C.green,
+                  color: hasActivity ? C.text : '#000',
+                  border: 'none',
+                  fontSize: 10,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  transition: '0.2s'
+                }}
+              >
+                {hasActivity ? '+ AGREGAR' : 'NUEVO PEDIDO'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* MODAL PEDIDO MANUAL */}
+      {showManualOrder && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: C.panel, width: '100%', maxWidth: 450, maxHeight: '90vh', borderRadius: 20, padding: 24, border: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <span style={{ ...styles.sectionLabel, color: C.green, marginBottom: 0 }}>Nuevo Pedido - Mesa {showManualOrder}</span>
+              <button onClick={() => { setShowManualOrder(null); setManualCart([]); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer' }}>×</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, paddingBottom: 20 }}>
+              {drinks.map(d => {
+                const count = manualCart.filter(it => it.id === d.id).length;
+                return (
+                  <div 
+                    key={d.id} 
+                    style={{ background: C.panel2, borderRadius: 12, padding: 10, border: `1px solid ${count > 0 ? C.green + '50' : C.border2}`, transition: '0.2s' }}
+                  >
+                    <img src={d.img} style={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 8, marginBottom: 8, opacity: count > 0 ? 1 : 0.5 }} />
+                    <div style={{ fontSize: 11, fontWeight: 600, height: 26, overflow: 'hidden' }}>{d.name}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: C.green }}>${d.price.toLocaleString()}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(0,0,0,0.2)', borderRadius: 20, padding: '2px 6px', border: `1px solid ${C.border2}` }}>
+                        <button 
+                          onClick={() => {
+                            const idx = manualCart.findLastIndex(it => it.id === d.id);
+                            if (idx !== -1) {
+                              const next = [...manualCart];
+                              next.splice(idx, 1);
+                              setManualCart(next);
+                            }
+                          }}
+                          style={{ background: 'none', border: 'none', color: count > 0 ? '#fff' : C.muted, fontSize: 16, cursor: 'pointer', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                        >-</button>
+                        <span style={{ fontSize: 12, fontWeight: 800, minWidth: 14, textAlign: 'center', color: count > 0 ? C.green : C.muted }}>{count}</span>
+                        <button 
+                          onClick={() => setManualCart([...manualCart, d])}
+                          style={{ background: 'none', border: 'none', color: C.green, fontSize: 16, cursor: 'pointer', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                        >+</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {manualCart.length > 0 && (
+              <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: C.muted }}>{manualCart.length} productos</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>${manualCart.reduce((a,b)=>a+b.price,0).toLocaleString()}</div>
+                  </div>
+                  <button onClick={() => setManualCart([])} style={{ background: 'none', border: 'none', color: C.red, fontSize: 12, fontWeight: 600 }}>Vaciar</button>
+                </div>
+                <button 
+                  onClick={handleSendManualOrder}
+                  style={{ width: '100%', padding: '14px', borderRadius: 12, background: C.green, color: '#000', border: 'none', fontWeight: 900, cursor: 'pointer' }}
+                >
+                  CONFIRMAR PEDIDO
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AdPanel = ({ ads, handleRemoveAdInternal, setShowAdModal }) => (
+  <div style={styles.panel}>
+    <div style={styles.sectionLabel}><IconAd /><span style={{ color: C.green }}>Publicidad</span></div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {ads.length === 0
+        ? <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '16px 0' }}>Sin anuncios activos</div>
+        : ads.map(ad => (
+          <div key={ad.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: C.panel2, borderRadius: 7, border: `0.5px solid ${C.border}` }}>
+            <img src={ad.image_url} style={{ width: 32, height: 32, borderRadius: 4, objectFit: 'cover' }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ad.title}</div>
+              <div style={{ fontSize: 9, color: C.green, marginTop: 2 }}>cada {ad.frequency} canciones</div>
+            </div>
+            <button onClick={() => handleRemoveAdInternal(ad.id)} style={{ ...styles.actionBtn, background: 'transparent', color: C.red, opacity: 0.5 }}>
+              <IconTrash />
+            </button>
+          </div>
+        ))
+      }
+      <button
+        onClick={() => setShowAdModal(true)}
+        style={{ width: '100%', padding: '8px', background: 'transparent', border: `0.5px dashed ${C.green}`, color: C.green, borderRadius: 7, fontSize: 10, cursor: 'pointer', marginTop: 4 }}
+      >
+        + agregar anuncio
+      </button>
+    </div>
+  </div>
+);
+
+const SearchPanel = ({ query, setQuery, performSearch, results, searchSource, onAddSong, setResults, searching, suggestions, setSuggestions }) => (
+  <div style={{ ...styles.panel, border: `0.5px solid ${C.green}30`, position: 'relative' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div style={{ ...styles.sectionLabel, color: C.green, marginBottom: 0 }}>Buscador maestro</div>
+      {searchSource && <span style={{ fontSize: 9, color: C.muted }}>vía {searchSource}</span>}
+    </div>
+    <div style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', background: C.panel2, padding: '9px 14px', borderRadius: 7, alignItems: 'center', gap: 10, border: `0.5px solid ${C.border}`, position: 'relative' }}>
+        <IconSearch />
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && performSearch(query)}
+          placeholder="Escribe el nombre de la canción..."
+          style={{ flex: 1, background: 'none', border: 'none', color: C.text, outline: 'none', fontSize: 13 }}
+        />
+        {searching && (
+          <div style={{ width: 14, height: 14, border: `2px solid ${C.green}30`, borderTop: `2px solid ${C.green}`, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        )}
+      </div>
+
+      {suggestions.length > 0 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: C.panel2, border: `0.5px solid ${C.border}`, borderRadius: '0 0 7px 7px', zIndex: 100, boxShadow: '0 10px 30px rgba(0,0,0,0.5)', marginTop: -1 }}>
+          {suggestions.map((s, i) => (
+            <div
+              key={i}
+              onClick={() => { setQuery(s); performSearch(s); setSuggestions([]); }}
+              style={{ padding: '10px 14px', fontSize: 12, cursor: 'pointer', borderBottom: i === suggestions.length - 1 ? 'none' : `0.5px solid ${C.border}`, color: '#fff' }}
+              onMouseEnter={e => e.target.style.background = 'rgba(255,255,255,0.05)'}
+              onMouseLeave={e => e.target.style.background = 'transparent'}
+            >
+              {s}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+
+    {results.length > 0 && (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14 }}>
+        {results.map(track => (
+          <div key={track.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', background: C.panel2, borderRadius: 7, border: `0.5px solid ${C.border}` }}>
+            <img src={track.img} style={{ width: 32, height: 32, borderRadius: 4 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.title}</div>
+              <div style={{ fontSize: 9, color: C.muted }}>{track.artist}</div>
+            </div>
+            <button onClick={() => { onAddSong(track); setQuery(""); setResults([]); }} style={{ ...styles.actionBtn, background: C.green, color: '#000', width: 26, height: 26 }}>+</button>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+);
+
+const QueuePanel = ({ approvedQueue, currentIdx, onPlay, onRemove, queue, onClearQueue }) => (
+  <div style={styles.panel}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <span style={styles.sectionLabel}>Cola aprobada ({approvedQueue.length})</span>
+      {queue.length > 0 && (
+        <button onClick={onClearQueue} style={{ background: 'transparent', border: `1px solid ${C.red}60`, color: C.red, padding: '4px 12px', borderRadius: 6, fontSize: 10, cursor: 'pointer' }}>Vaciar lista</button>
+      )}
+    </div>
+    {approvedQueue.length === 0 ? <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '20px 0' }}>Cola vacía</div> : approvedQueue.map((song, idx) => (
+      <div key={song.queueRowId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', borderBottom: `0.5px solid ${C.border}` }}>
+        <div style={{ width: 16, fontSize: 10, color: idx === currentIdx ? C.green : C.muted }}>{idx === currentIdx ? '▶' : idx + 1}</div>
+        <img src={song.img} style={{ width: 32, height: 32, borderRadius: 4 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 500, color: idx === currentIdx ? C.green : C.text }}>{song.title}</div>
+          <div style={{ fontSize: 10, color: C.muted }}>{song.artist}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button onClick={() => onPlay(idx)} style={{ ...styles.actionBtn, background: C.panel2, width: 24, height: 24 }}><IconPlaySmall /></button>
+          <button onClick={() => onRemove(queue.indexOf(song))} style={{ ...styles.actionBtn, background: 'transparent', color: C.red, width: 24, height: 24 }}><IconTrash /></button>
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+
+const SidebarItem = ({ icon: Icon, label, tabId, activeTab, setActiveTab }) => {
+  const active = activeTab === tabId;
+  return (
+    <div
+      onClick={() => setActiveTab(tabId)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10,
+        cursor: 'pointer', background: active ? 'rgba(29,185,84,0.1)' : 'transparent',
+        color: active ? C.green : C.text, transition: '0.2s', marginBottom: 4,
+        border: active ? `0.5px solid ${C.green}30` : '0.5px solid transparent'
+      }}
+    >
+      <Icon />
+      <span style={{ fontSize: 13, fontWeight: active ? 600 : 400 }}>{label}</span>
+    </div>
+  );
+};
+
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 export default function AdminView({
   queue = [], currentIdx = 0, onRemove, onPlay, onAddSong, onClearQueue, onApprove,
@@ -189,6 +745,41 @@ export default function AdminView({
   const [rejectedCount, setRejectedCount] = useState(0);
   const [rejectedMessagesCount, setRejectedMessagesCount] = useState(0);
   const [approvedMessagesCount, setApprovedMessagesCount] = useState(0);
+  const [selectedTableDetail, setSelectedTableDetail] = useState(null);
+
+  const updateItemStatus = async (orderId, itemIndex, newStatus) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    const newItems = [...order.items];
+    newItems[itemIndex] = { ...newItems[itemIndex], status: newStatus };
+    
+    // Si todos los items están completados, marcar orden como completada
+    const allDone = newItems.every(i => i.status === 'completed');
+    
+    const { error } = await supabase.from('drink_orders').update({ 
+      items: newItems,
+      status: allDone ? 'completed' : 'pending'
+    }).eq('id', orderId);
+    
+    if (error) console.error("Error actualizando item:", error);
+  };
+
+  const cancelItem = async (orderId, itemIndex, songId, type) => {
+    if (type === 'song') {
+        await supabase.from('queue').delete().eq('id', songId);
+        return;
+    }
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    const newItems = order.items.filter((_, i) => i !== itemIndex);
+    
+    if (newItems.length === 0) {
+      await handleOrderAction(orderId, 'cancelled');
+    } else {
+      const newTotal = newItems.reduce((acc, i) => acc + i.price, 0);
+      await supabase.from('drink_orders').update({ items: newItems, total: newTotal }).eq('id', orderId);
+    }
+  };
   const [showAdModal, setShowAdModal] = useState(false);
   const [newAd, setNewAd] = useState({ title: '', image_url: '', frequency: 1 });
   const [adFile, setAdFile] = useState(null);
@@ -196,6 +787,8 @@ export default function AdminView({
   const [screenMessages, setScreenMessages] = useState([]);
   const [pendingFilter, setPendingFilter] = useState('all'); // ← NUEVO
   const [searchSource, setSearchSource] = useState(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [orders, setOrders] = useState([]); // ← NUEVO
 
   // --- LÓGICA DE CRÉDITOS UP-T ---
   const [credits, setCredits] = useState(0);
@@ -259,7 +852,35 @@ export default function AdminView({
           setScreenMessages(prev => [payload.new, ...prev]);
           const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
           audio.volume = 0.2;
-          audio.play().catch(() => {});
+          audio.play().catch(() => { });
+        }
+      }).subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [establishmentId]);
+
+  // ─── Pedidos de bebidas en tiempo real ─────────────────────────────────────
+  useEffect(() => {
+    if (!supabase || !establishmentId) return;
+    const fetchOrders = async () => {
+      const { data } = await supabase
+        .from('drink_orders').select('*')
+        .eq('establishment_id', establishmentId)
+        .order('created_at', { ascending: false });
+      if (data) setOrders(data);
+    };
+    fetchOrders();
+    const channel = supabase
+      .channel('admin-orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'drink_orders' }, (payload) => {
+        if (payload.new && payload.new.establishment_id === establishmentId) {
+          if (payload.eventType === 'INSERT') {
+            setOrders(prev => [payload.new, ...prev]);
+            new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3").play().catch(() => { });
+          } else if (payload.eventType === 'UPDATE') {
+            setOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new : o));
+          } else if (payload.eventType === 'DELETE') {
+            setOrders(prev => prev.filter(o => o.id !== payload.old.id));
+          }
         }
       }).subscribe();
     return () => supabase.removeChannel(channel);
@@ -279,7 +900,17 @@ export default function AdminView({
       alert("Error: " + error.message);
     } else {
       const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
-      audio.play().catch(() => {});
+      audio.play().catch(() => { });
+    }
+  };
+
+  // ─── Acciones de Pedidos ──────────────────────────────────────────────────
+  const handleOrderAction = async (id, status) => {
+    try {
+      const { error } = await supabase.from('drink_orders').update({ status }).eq('id', id);
+      if (error) throw error;
+    } catch (err) {
+      alert("Error al actualizar pedido: " + err.message);
     }
   };
 
@@ -331,7 +962,7 @@ export default function AdminView({
         setLastNewTrack(newTrack);
         const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3");
         audio.volume = 0.4;
-        audio.play().catch(() => {});
+        audio.play().catch(() => { });
       }
     }
     prevQueueLen.current = queue.length;
@@ -435,7 +1066,7 @@ export default function AdminView({
       const det = await (await fetch(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${ids}&key=${key}`, { signal })).json();
       const durMap = {};
       (det.items || []).forEach(v => { durMap[v.id] = formatDuration(v.contentDetails.duration); });
-      
+
       setResults(items.map(item => normalizeYouTube(item, durMap)));
       setSearchSource("youtube");
     } catch (e) {
@@ -545,408 +1176,171 @@ export default function AdminView({
     rejected: rejectedMessagesCount,
   };
 
-  // ─── Estilos base ─────────────────────────────────────────────────────────
-  const C = {
-    bg: '#0f0f0f', panel: '#161616', panel2: '#1c1c1c', border: '#222', border2: '#2a2a2a',
-    text: '#d8d8d8', muted: '#555', green: '#1DB954', amber: '#EF9F27', red: '#E24B4A', blue: '#85B7EB',
-  };
-  const panel = {
-    background: C.panel, borderRadius: 10, border: `0.5px solid ${C.border}`, padding: '16px',
-  };
-  const sectionLabel = {
-    fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em',
-    fontWeight: 500, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6,
-  };
-  const actionBtn = {
-    border: 'none', borderRadius: 4, cursor: 'pointer', display: 'flex',
-    alignItems: 'center', justifyContent: 'center', transition: '0.15s', flexShrink: 0,
-  };
 
-  // ─── Stats strip ──────────────────────────────────────────────────────────
-  const StatsStrip = () => {
-    const colStyle = () => ({ display: 'flex', flexDirection: 'column', borderRight: `0.5px solid ${C.border}` });
-    const titleCell = (label, color) => (
-      <div style={{ padding: '5px 14px', background: '#111', borderBottom: `0.5px solid ${C.border}`, fontSize: 9, color: color || C.muted }}>{label}</div>
-    );
-    const valueCell = (val, color, bg) => (
-      <div style={{ padding: '10px 14px', background: bg || C.panel, fontSize: 22, fontWeight: 500, color: color || C.text }}>{val}</div>
-    );
-    return (
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr', border: `0.5px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', marginBottom: 20 }}>
-        <div>
-          <div style={{ padding: '6px 14px', background: '#0d0d0d', borderBottom: `0.5px solid ${C.border}`, fontSize: 9, color: C.green, fontWeight: 600 }}>CANCIONES</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
-            <div style={colStyle()}>{titleCell('Total')}{valueCell(clientStats.total)}</div>
-            <div style={colStyle()}>{titleCell('Aprobadas', C.green)}{valueCell(clientStats.approved, C.green)}</div>
-            <div style={colStyle()}>{titleCell('Pendientes', C.amber)}{valueCell(clientStats.pending, C.amber)}</div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>{titleCell('Rechazadas', C.red)}{valueCell(clientStats.rejected, C.red)}</div>
-          </div>
-        </div>
-        <div style={{ background: C.border2 }} />
-        <div>
-          <div style={{ padding: '6px 14px', background: '#0d0d0d', borderBottom: `0.5px solid ${C.border}`, fontSize: 9, color: C.blue, fontWeight: 600 }}>MENSAJES</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
-            <div style={colStyle()}>{titleCell('Total')}{valueCell(messageStats.total, C.text, '#121212')}</div>
-            <div style={colStyle()}>{titleCell('Aprobados', C.blue)}{valueCell(messageStats.approved, C.blue, '#121212')}</div>
-            <div style={colStyle()}>{titleCell('Pendientes', C.amber)}{valueCell(messageStats.pending, C.amber, '#121212')}</div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>{titleCell('Rechazados', C.red)}{valueCell(messageStats.rejected, C.red, '#121212')}</div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ─── RENDER ───────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', overflowY: 'auto', overflowX: 'hidden', background: C.bg, color: C.text, fontFamily: 'system-ui, sans-serif', boxSizing: 'border-box' }}>
-      {lastNewTrack && <NewBadge track={lastNewTrack} onDone={() => setLastNewTrack(null)} />}
+    <div style={{ display: 'flex', height: '100vh', background: C.bg, color: C.text, fontFamily: 'system-ui, sans-serif', overflow: 'hidden' }}>
 
-      {/* ── HEADER ──────────────────────────────────────────────────────────── */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px', borderBottom: `0.5px solid ${C.border}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 7, height: 7, background: C.green, borderRadius: '50%' }} />
-          <span style={{ fontSize: 15, fontWeight: 500 }}>
-            Up-T <span style={{ color: C.green }}>Admin</span>
-            {establishmentName && <span style={{  marginLeft: 5, fontSize: 14, fontWeight: 500 }}>- {establishmentName}</span>}
-          </span>
+      {/* ── SIDEBAR ────────────────────────────────────────────────────────── */}
+      <aside style={{ width: 240, background: C.panel, borderRight: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+        <div style={{ padding: '24px', borderBottom: `0.5px solid ${C.border}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <div style={{ width: 10, height: 10, background: C.green, borderRadius: '50%', boxShadow: `0 0 10px ${C.green}60` }} />
+            <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.04em' }}>
+              Up-Track
+            </span>
+          </div>
+          <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: '0.1em' }}>PRO MANAGEMENT</div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {/* Créditos */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: credits <= lowCredit ? 'rgba(226,75,74,0.08)' : '#161616', padding: '4px 12px', borderRadius: 8, border: `0.5px solid ${credits <= lowCredit ? C.red : C.border2}` }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 8, color: C.muted, fontWeight: 600 }}>SALDO UP-T</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: credits <= lowCredit ? C.red : C.green }}>
-                {credits} <span style={{ fontSize: 9, fontWeight: 400 }}>Creditos</span>
+
+        <SidebarStats
+          queue={queue}
+          clientStats={clientStats}
+          approvedMessagesCount={approvedMessagesCount}
+          screenMessages={screenMessages}
+          ads={ads}
+          credits={credits}
+          lowCredit={lowCredit}
+        />
+
+        <nav style={{ flex: 1, padding: '20px 12px', overflowY: 'auto' }}>
+          <SidebarItem icon={IconHome} label="Pedidos" tabId="dashboard" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SidebarItem icon={IconMusic} label="Reproducción" tabId="queue" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SidebarItem icon={IconAd} label="Publicidad" tabId="ads" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <div style={{ margin: '16px 16px 8px', fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: '0.1em' }}>SISTEMA</div>
+          <SidebarItem icon={IconSettings} label="Configuración" tabId="settings" activeTab={activeTab} setActiveTab={setActiveTab} />
+        </nav>
+
+        <div style={{ padding: '16px 20px', borderTop: `0.5px solid ${C.border}`, background: '#0d0d0d' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: C.panel2, border: `0.5px solid ${C.border2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
+              🏢
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {establishmentName || 'Local Bogotá'}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+                <div style={{ width: 5, height: 5, background: C.green, borderRadius: '50%', boxShadow: `0 0 6px ${C.green}` }} />
+                <div style={{ fontSize: 9, color: C.muted, fontWeight: 600, letterSpacing: '0.01em' }}>Suscripción Premium</div>
               </div>
             </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* ── CONTENIDO PRINCIPAL ────────────────────────────────────────────── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {lastNewTrack && <NewBadge track={lastNewTrack} onDone={() => setLastNewTrack(null)} />}
+
+        {/* ── HEADER ──────────────────────────────────────────────────────────── */}
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px', borderBottom: `0.5px solid ${C.border}`, background: C.panel }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>
+              {activeTab === 'dashboard' ? 'Pedidos del Establecimiento' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+              {establishmentName && <span style={{ marginLeft: 8, color: C.muted, fontWeight: 400 }}>· {establishmentName}</span>}
+            </h2>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            {/* Créditos */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: credits <= lowCredit ? 'rgba(226,75,74,0.08)' : '#0d0d0d', padding: '6px 14px', borderRadius: 10, border: `0.5px solid ${credits <= lowCredit ? C.red : C.border2}` }}>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 8, color: C.muted, fontWeight: 600 }}>SALDO UP-T</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: credits <= lowCredit ? C.red : C.green }}>
+                  {credits} <span style={{ fontSize: 9, fontWeight: 400, color: C.muted }}>Créditos</span>
+                </div>
+              </div>
+              <button
+                onClick={() => window.open('https://wa.me/tu_numero', '_blank')}
+                style={{ background: credits <= lowCredit ? C.red : C.panel2, color: credits <= lowCredit ? '#000' : C.text, border: 'none', padding: '6px 10px', borderRadius: 6, fontSize: 9, fontWeight: 700, cursor: 'pointer' }}
+              >
+                RECARGAR
+              </button>
+            </div>
+
+            {/* Toggle auto-play */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#0d0d0d', padding: '8px 14px', borderRadius: 10, border: `0.5px solid ${C.border2}` }}>
+              <span style={{ fontSize: 11, color: autoPlay ? C.green : C.muted, fontWeight: 500 }}>{autoPlay ? 'Auto-play' : 'Moderación'}</span>
+              <div onClick={() => onToggleAutoPlay(!autoPlay)} style={{ width: 34, height: 18, background: autoPlay ? C.green : '#333', borderRadius: 10, position: 'relative', cursor: 'pointer', transition: '0.3s' }}>
+                <div style={{ width: 14, height: 14, background: '#fff', borderRadius: '50%', position: 'absolute', top: 2, left: autoPlay ? 18 : 2, transition: '0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} />
+              </div>
+            </div>
+
+            {/* Abrir TV */}
             <button
-              onClick={() => window.open('https://wa.me/tu_numero', '_blank')}
-              style={{ background: credits <= lowCredit ? C.red : C.panel2, color: credits <= lowCredit ? '#000' : C.text, border: 'none', padding: '4px 8px', borderRadius: 4, fontSize: 9, fontWeight: 700, cursor: 'pointer' }}
+              onClick={() => window.open('/tvVideo', '_blank')}
+              style={{ background: C.green, color: '#000', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: `0 4px 14px ${C.green}30` }}
             >
-              RECARGAR
+              <IconTv /> Abrir TV
             </button>
           </div>
+        </header>
 
-          {/* Toggle auto-play */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#161616', padding: '6px 14px', borderRadius: 8, border: `0.5px solid ${C.border2}` }}>
-            <span style={{ fontSize: 11, color: autoPlay ? C.green : C.muted }}>{autoPlay ? 'Auto-play activo' : 'Moderación activa'}</span>
-            <div onClick={() => onToggleAutoPlay(!autoPlay)} style={{ width: 32, height: 16, background: autoPlay ? C.green : '#333', borderRadius: 10, position: 'relative', cursor: 'pointer' }}>
-              <div style={{ width: 12, height: 12, background: '#fff', borderRadius: '50%', position: 'absolute', top: 2, left: autoPlay ? 18 : 2, transition: '0.25s' }} />
-            </div>
-          </div>
+        {/* ── CONTENIDO SCROLLABLE ───────────────────────────────────────────── */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px', boxSizing: 'border-box', background: '#080808' }}>
 
-          {/* Abrir TV */}
-          <button
-            onClick={() => window.open('/tvVideo', '_blank')}
-            style={{ background: C.green, color: '#000', border: 'none', padding: '6px 14px', borderRadius: 6, fontWeight: 500, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <IconTv /> Abrir TV
-          </button>
-        </div>
-      </header>
-
-      {/* ── STATS ───────────────────────────────────────────────────────────── */}
-      <div style={{ padding: '16px 24px 0' }}><StatsStrip /></div>
-
-      {/* ── GRID PRINCIPAL ──────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '240px minmax(0,1fr) 350px', gap: 14, padding: '0 24px 28px' }}>
-
-        {/* ── COLUMNA IZQUIERDA: Publicidad ─────────────────────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
-          <div style={panel}>
-            <div style={sectionLabel}><IconAd /><span style={{ color: C.green }}>Publicidad</span></div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {ads.length === 0
-                ? <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '16px 0' }}>Sin anuncios activos</div>
-                : ads.map(ad => (
-                  <div key={ad.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: C.panel2, borderRadius: 7, border: `0.5px solid ${C.border}` }}>
-                    <img src={ad.image_url} style={{ width: 32, height: 32, borderRadius: 4, objectFit: 'cover' }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ad.title}</div>
-                      <div style={{ fontSize: 9, color: C.green, marginTop: 2 }}>cada {ad.frequency} canciones</div>
-                    </div>
-                    <button onClick={() => handleRemoveAdInternal(ad.id)} style={{ ...actionBtn, background: 'transparent', color: C.red, opacity: 0.5 }}>
-                      <IconTrash />
-                    </button>
-                  </div>
-                ))
-              }
-              <button
-                onClick={() => setShowAdModal(true)}
-                style={{ width: '100%', padding: '8px', background: 'transparent', border: `0.5px dashed ${C.green}`, color: C.green, borderRadius: 7, fontSize: 10, cursor: 'pointer', marginTop: 4 }}
-              >
-                + agregar anuncio
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* ── COLUMNA CENTRAL: Buscador + Cola aprobada ─────────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, overflow: 'hidden' }}>
-
-          {/* Buscador */}
-          <div style={{ ...panel, border: `0.5px solid ${C.green}30`, position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ ...sectionLabel, color: C.green, marginBottom: 0 }}>Buscador maestro</div>
-              {searchSource && (
-                <span style={{ fontSize: 9, color: C.muted, letterSpacing: "0.05em" }}>
-                  vía {searchSource === "invidious" ? "⚡ invidious" : "▶ youtube"}
-                </span>
-              )}
-            </div>
-            <div style={{ display: 'flex', background: C.panel2, padding: '9px 14px', borderRadius: 7, alignItems: 'center', gap: 10, border: `0.5px solid ${C.border}` }}>
-              <IconSearch />
-              <input
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && performSearch(query)}
-                placeholder="Escribe el nombre de la canción..."
-                style={{ flex: 1, background: 'none', border: 'none', color: C.text, outline: 'none', fontSize: 13 }}
+          {/* DASHBOARD VIEW - PEDIDOS */}
+          {activeTab === 'dashboard' && (
+            <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+            <OrderPanel 
+                orders={orders} 
+                handleOrderAction={handleOrderAction} 
+                selectedTableDetail={selectedTableDetail}
+                setSelectedTableDetail={setSelectedTableDetail}
+                updateItemStatus={updateItemStatus}
+                cancelItem={cancelItem}
+                queue={queue}
+                screenMessages={screenMessages}
+                handleApproveSong={handleApproveSong}
+                handleMessageAction={handleMessageAction}
+                establishmentId={establishmentId}
               />
-              {query && <button onClick={() => { setQuery(""); setResults([]); setSuggestions([]); }} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer" }}>✕</button>}
-              {searching && <div className="spinner" />}
             </div>
+          )}
 
-            {/* Sugerencias */}
-            {suggestions.length > 0 && (
-              <div style={{ position: 'absolute', top: 78, left: 16, right: 16, background: '#1a1a1a', borderRadius: 7, zIndex: 100, border: `0.5px solid ${C.border2}`, overflow: 'hidden' }}>
-                {suggestions.map((s, idx) => (
-                  <div key={idx} onClick={() => { setQuery(s); performSearch(s); }} style={{ padding: '9px 14px', fontSize: 12, cursor: 'pointer', borderBottom: `0.5px solid ${C.border}` }}>
-                    {s}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Resultados */}
-            {error && <div style={{ fontSize: 11, color: C.red, marginTop: 10 }}>{error}</div>}
-            {results.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14 }}>
-                {results.map(track => (
-                  <div key={track.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', background: C.panel2, borderRadius: 7, border: `0.5px solid ${C.border}`, minWidth: 0 }}>
-                    <img src={track.img} style={{ width: 32, height: 32, borderRadius: 4, objectFit: 'cover' }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.title}</div>
-                      <div style={{ fontSize: 9, color: C.muted }}>{track.artist}</div>
-                    </div>
-                    <button
-                    onClick={() => {
-                      onAddSong(track);
-                      setQuery(""); setResults([]); 
-                    }}
-                      style={{ ...actionBtn, background: C.green, color: '#000', width: 26, height: 26, fontSize: 16 }}
-                    >
-                      +
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Cola aprobada */}
-          <div style={panel}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <span style={sectionLabel}>
-                Cola aprobada <span style={{ color: C.muted, marginLeft: 4 }}>({approvedQueue.length})</span>
-              </span>
-              {queue.length > 0 && (
-                <button
-                  onClick={() => window.confirm("¿Vaciar todas las canciones?") && onClearQueue()}
-                  style={{ background: 'transparent', border: `1px solid ${C.red}60`, color: C.red, padding: '6px 16px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: '0.2s' }}
-                >
-                  Vaciar lista
-                </button>
-              )}
+          {/* REPRODUCCIÓN VIEW */}
+          {activeTab === 'queue' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <SearchPanel
+                query={query}
+                setQuery={setQuery}
+                performSearch={performSearch}
+                results={results}
+                searchSource={searchSource}
+                onAddSong={onAddSong}
+                setResults={setResults}
+                searching={searching}
+                suggestions={suggestions}
+                setSuggestions={setSuggestions}
+              />
+              <QueuePanel
+                approvedQueue={approvedQueue}
+                currentIdx={currentIdx}
+                onPlay={onPlay}
+                onRemove={onRemove}
+                queue={queue}
+                onClearQueue={onClearQueue}
+              />
             </div>
-            {approvedQueue.length === 0
-              ? <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '20px 0' }}>Cola vacía</div>
-              : approvedQueue.map((song, idx) => (
-                <div key={song.queueRowId} style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px',
-                  borderBottom: `0.5px solid ${C.border}`,
-                  background: idx === currentIdx ? '#1DB95408' : 'transparent',
-                  borderLeft: song.is_cliente ? `2px solid ${C.green}` : '2px solid transparent',
-                }}>
-                  <div style={{ width: 16, fontSize: 10, color: idx === currentIdx ? C.green : C.muted, textAlign: 'center' }}>
-                    {idx === currentIdx ? '▶' : idx + 1}
-                  </div>
-                  <img src={song.img} style={{ width: 32, height: 32, borderRadius: 4 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 12, fontWeight: 500, color: idx === currentIdx ? C.green : C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {song.title}
-                      </span>
-                      {idx === currentIdx && (
-                        <span style={{ background: C.green, color: '#000', fontSize: 8, fontWeight: 600, padding: '1px 5px', borderRadius: 3 }}>ahora</span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 10, color: C.muted }}>{song.artist}</div>
-                  </div>
-                  <div style={{ fontSize: 10, color: C.muted, fontFamily: 'monospace', marginRight: 4 }}>
-                    {song.duration}
-                  </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={() => onPlay(idx)} style={{ ...actionBtn, background: C.panel2, border: `0.5px solid ${C.border}`, color: C.green, width: 24, height: 24 }}>
-                      <IconPlaySmall />
-                    </button>
-                    <button onClick={() => onRemove(queue.indexOf(song))} style={{ ...actionBtn, background: 'transparent', color: C.red, width: 24, height: 24, opacity: 0.5 }}>
-                      <IconTrash />
-                    </button>
-                  </div>
-                </div>
-              ))
-            }
-          </div>
-        </div>
+          )}
 
-        {/* ── COLUMNA DERECHA: Solicitudes Pendientes (canciones + mensajes) ── */}
-        <div style={panel}>
+          {/* PUBLICIDAD VIEW */}
+          {activeTab === 'ads' && (
+            <div style={{ maxWidth: 600, margin: '0 auto' }}>
+              <AdPanel ads={ads} handleRemoveAdInternal={handleRemoveAdInternal} setShowAdModal={setShowAdModal} />
+            </div>
+          )}
 
-          {/* Cabecera */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <span style={{ ...sectionLabel, color: C.amber, marginBottom: 0 }}>
-              <IconCheck /> Solicitudes Pendientes
-            </span>
-            {allPending.length > 0 && (
-              <span style={{ background: C.amber, color: '#000', fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 4 }}>
-                {allPending.length}
-              </span>
-            )}
-          </div>
+          {/* CONFIGURACIÓN VIEW */}
+          {activeTab === 'settings' && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60%', color: C.muted, flexDirection: 'column', gap: 12 }}>
+              <IconSettings />
+              <div style={{ fontSize: 14 }}>Ajustes del Sistema</div>
+              <div style={{ fontSize: 11, opacity: 0.5 }}>Próximamente: Personalización de TV y Límites de pedidos</div>
+            </div>
+          )}
 
-          {/* Filtros */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-            {[
-              { key: 'all',  label: 'Todos' },
-              { key: 'song', label: '♪ Canciones' },
-              { key: 'msg',  label: '✉ Mensajes' },
-            ].map(f => (
-              <button
-                key={f.key}
-                onClick={() => setPendingFilter(f.key)}
-                style={{
-                  background: pendingFilter === f.key ? C.panel2 : 'transparent',
-                  border: `0.5px solid ${pendingFilter === f.key ? C.border2 : C.border}`,
-                  color: pendingFilter === f.key ? C.text : C.muted,
-                  padding: '4px 10px', borderRadius: 5, fontSize: 10, cursor: 'pointer',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Lista unificada */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {allPending.filter(item => pendingFilter === 'all' || item.itemType === pendingFilter).length === 0
-              ? (
-                <div style={{ fontSize: 11, color: '#333', textAlign: 'center', padding: '24px 0' }}>
-                  No hay solicitudes
-                </div>
-              )
-              : allPending
-                  .filter(item => pendingFilter === 'all' || item.itemType === pendingFilter)
-                  .map(item => {
-
-                    // ── Tarjeta CANCIÓN ──────────────────────────────────────
-                    if (item.itemType === 'song') {
-                      return (
-                        <div
-                          key={item.queueRowId}
-                          style={{ background: C.panel2, padding: 12, borderRadius: 8, border: `0.5px solid ${item.is_cliente ? C.green + '40' : C.border}` }}
-                        >
-                          {/* Badges */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', background: 'rgba(29,185,84,0.10)', color: C.green, padding: '2px 7px', borderRadius: 4 }}>
-                              ♪ CANCIÓN
-                            </span>
-                            {item.is_cliente && (
-                              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', background: 'rgba(29,185,84,0.08)', color: C.green, padding: '2px 7px', borderRadius: 4 }}>
-                                CLIENTE
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Info canción */}
-                          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                            <img src={item.img} style={{ width: 44, height: 44, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {item.title}
-                              </div>
-                              <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
-                                {item.artist} · <span style={{ color: '#444' }}>{timeAgo(item.created_at)}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Acciones canción */}
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button
-                              onClick={() => handleApproveSong(item)}
-                              style={{ ...actionBtn, flex: 1, background: C.green, color: '#000', height: 28, fontSize: 11, fontWeight: 600 }}
-                            >
-                              Aprobar
-                            </button>
-                            <button
-                              onClick={() => handleRemoveWithStats(queue.indexOf(item))}
-                              style={{ ...actionBtn, background: 'transparent', border: `0.5px solid ${C.border2}`, color: C.red, width: 28, height: 28 }}
-                            >
-                              <IconTrash />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // ── Tarjeta MENSAJE ──────────────────────────────────────
-                    return (
-                      <div
-                        key={item.id}
-                        style={{ background: C.panel2, padding: 12, borderRadius: 8, border: `0.5px solid ${C.blue}30` }}
-                      >
-                        {/* Badge + tiempo */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', background: 'rgba(133,183,235,0.10)', color: C.blue, padding: '2px 7px', borderRadius: 4 }}>
-                            ✉ MENSAJE
-                          </span>
-                          <span style={{ fontSize: 9, color: '#444' }}>{timeAgo(item.created_at)}</span>
-                        </div>
-
-                        {/* Texto del mensaje */}
-                        <div style={{ fontSize: 12, fontStyle: 'italic', color: '#c0c0c0', borderLeft: `2px solid ${C.blue}40`, paddingLeft: 10, marginBottom: 10, lineHeight: 1.5 }}>
-                          "{item.text}"
-                        </div>
-
-                        {/* Autor y Acciones mensaje */}
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 10, color: C.blue, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              De: {item.author || 'Anónimo'}
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', gap: 6, flex: 1.5 }}>
-                            <button
-                              onClick={() => handleMessageAction(item.id, 'approved')}
-                              style={{ ...actionBtn, flex: 1, background: C.blue, color: '#042C53', height: 28, fontSize: 11, fontWeight: 600 }}
-                            >
-                              Aprobar
-                            </button>
-                            <button
-                              onClick={() => handleMessageAction(item.id, 'rejected')}
-                              style={{ ...actionBtn, background: 'transparent', border: `0.5px solid ${C.border2}`, color: C.red, width: 28, height: 28 }}
-                            >
-                              <IconTrash />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-            }
-          </div>
         </div>
       </div>
 
@@ -956,63 +1350,39 @@ export default function AdminView({
           <div style={{ ...panel, width: '100%', maxWidth: 400, boxSizing: 'border-box', border: `0.5px solid ${C.green}50`, padding: 24 }}>
             <div style={{ ...sectionLabel, color: C.green, marginBottom: 18 }}>Nueva pauta publicitaria</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5 }}>Nombre de la marca</label>
-                <input
-                  type="text" placeholder="Ej: Heineken"
-                  value={newAd.title}
-                  style={{ width: '100%', boxSizing: 'border-box', background: C.panel2, border: `0.5px solid ${C.border2}`, padding: '10px 12px', borderRadius: 7, color: C.text, fontSize: 13, outline: 'none' }}
-                  onChange={e => setNewAd({ ...newAd, title: e.target.value })}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5 }}>Subir imagen</label>
-                <input
-                  type="file" accept="image/*"
-                  style={{ width: '100%', boxSizing: 'border-box', background: C.panel2, border: `0.5px solid ${C.border2}`, padding: '10px 12px', borderRadius: 7, color: C.text, fontSize: 12 }}
-                  onChange={e => setAdFile(e.target.files[0])}
-                />
-                <div style={{ textAlign: 'center', margin: '8px 0', fontSize: 9, color: '#333' }}>— o usar URL —</div>
-                <input
-                  type="text" placeholder="https://..."
-                  style={{ width: '100%', boxSizing: 'border-box', background: C.panel2, border: `0.5px solid ${C.border2}`, padding: '10px 12px', borderRadius: 7, color: C.text, fontSize: 13, outline: 'none' }}
-                  value={newAd.image_url}
-                  onChange={e => setNewAd({ ...newAd, image_url: e.target.value })}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 10, color: C.muted, display: 'block', marginBottom: 5 }}>Frecuencia</label>
-                <select
-                  value={newAd.frequency}
-                  style={{ width: '100%', boxSizing: 'border-box', background: C.panel2, border: `0.5px solid ${C.border2}`, padding: '10px 12px', borderRadius: 7, color: C.text, fontSize: 13 }}
-                  onChange={e => setNewAd({ ...newAd, frequency: parseInt(e.target.value) })}
-                >
-                  <option value="1">Cada 1 canciones</option>
-                  <option value="2">Cada 2 canciones</option>
-                  <option value="3">Cada 3 canciones</option>
-                  <option value="5">Cada 5 canciones</option>
-                  <option value="10">Cada 10 canciones</option>
-                </select>
-              </div>
-              <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-                <button
-                  onClick={() => { setShowAdModal(false); setAdFile(null); }}
-                  style={{ flex: 1, padding: '10px', borderRadius: 7, background: 'transparent', border: `0.5px solid ${C.border2}`, color: C.muted, cursor: 'pointer', fontSize: 12 }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSaveAdInternal}
-                  disabled={uploadingAd}
-                  style={{ flex: 1, padding: '10px', borderRadius: 7, background: uploadingAd ? '#0e6e30' : C.green, border: 'none', color: '#000', fontWeight: 500, cursor: 'pointer', fontSize: 12 }}
-                >
-                  {uploadingAd ? "Subiendo…" : "Guardar"}
-                </button>
+              <input
+                type="text" placeholder="Nombre de la marca"
+                value={newAd.title}
+                style={{ width: '100%', boxSizing: 'border-box', background: C.panel2, border: `0.5px solid ${C.border2}`, padding: '10px 12px', borderRadius: 7, color: C.text, fontSize: 13 }}
+                onChange={e => setNewAd({ ...newAd, title: e.target.value })}
+              />
+              <input
+                type="file" accept="image/*"
+                style={{ width: '100%', boxSizing: 'border-box', background: C.panel2, border: `0.5px solid ${C.border2}`, padding: '10px 12px', borderRadius: 7, color: C.text, fontSize: 12 }}
+                onChange={e => setAdFile(e.target.files[0])}
+              />
+              <select
+                value={newAd.frequency}
+                style={{ width: '100%', boxSizing: 'border-box', background: C.panel2, border: `0.5px solid ${C.border2}`, padding: '10px 12px', borderRadius: 7, color: C.text, fontSize: 13 }}
+                onChange={e => setNewAd({ ...newAd, frequency: parseInt(e.target.value) })}
+              >
+                <option value="1">Cada 1 canciones</option>
+                <option value="3">Cada 3 canciones</option>
+                <option value="5">Cada 5 canciones</option>
+              </select>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setShowAdModal(false)} style={{ flex: 1, padding: '10px', borderRadius: 7, background: 'transparent', border: `0.5px solid ${C.border2}`, color: C.muted }}>Cancelar</button>
+                <button onClick={handleSaveAdInternal} disabled={uploadingAd} style={{ flex: 1, padding: '10px', borderRadius: 7, background: C.green, color: '#000', fontWeight: 600 }}>{uploadingAd ? "..." : "Guardar"}</button>
               </div>
             </div>
           </div>
         </div>
       )}
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

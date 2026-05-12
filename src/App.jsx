@@ -81,6 +81,7 @@ export default function App() {
       img: song.img_url || "https://picsum.photos/seed/default/600/600",
       youtubeId,
       created_at: item.requested_at,
+      mesa: item.mesa,
     };
   }, []);
 
@@ -256,6 +257,7 @@ export default function App() {
       song_id: repoSong.id,
       is_approved: isApproved,
       is_cliente: song.is_cliente || false,
+      mesa: song.mesa || null,
       // Si se aprueba al insertar, marcamos el momento para respetar el orden de prioridad
       approved_at: isApproved ? new Date().toISOString() : null,
     }).select('id').single(); // Select the ID of the new queue item

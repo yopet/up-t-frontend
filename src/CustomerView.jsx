@@ -14,7 +14,7 @@ const EXHAUSTED_KEY = "yt_exhausted_keys";
 const EXHAUSTED_UNTIL_KEY = "yt_exhausted_until";
 const COOLDOWN_MINUTES = 2;
 const PIN_SESSION_KEY = "up_t_pin_verified"; // { estId, until }
-const PIN_SESSION_HOURS = 6; // La sesión dura 6h — al cerrar el local se invalida sola
+const PIN_SESSION_HOURS = 1; // La sesión dura 1h — al cerrar el local se invalida sola
 
 function getAvailableKey() {
   const until = parseInt(localStorage.getItem(EXHAUSTED_UNTIL_KEY) || "0");
@@ -251,15 +251,87 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
   const [msgAuthor, setMsgAuthor] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);
 
+  // ─── STATE PEDIDOS ────────────────────────────────────────────────────────
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [selectedMesa, setSelectedMesa] = useState(() => {
+    return localStorage.getItem("up_t_selected_mesa") || null;
+  });
+  const [cart, setCart] = useState([]);
+  const [showMesaError, setShowMesaError] = useState(false);
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [myOrders, setMyOrders] = useState([]);
+  const [tableOrders, setTableOrders] = useState([]);
+  const [pendingSongAfterMesa, setPendingSongAfterMesa] = useState(null);
+  const [pendingMsgAfterMesa, setPendingMsgAfterMesa] = useState(false);
+
+  useEffect(() => {
+    const savedRecent = localStorage.getItem("up_t_recent_orders");
+    if (savedRecent) setRecentOrders(JSON.parse(savedRecent));
+    
+    const savedIds = JSON.parse(localStorage.getItem("up_t_my_order_ids") || "[]");
+    if (savedIds.length > 0) {
+      fetchMyOrders(savedIds);
+      subscribeToMyOrders(savedIds);
+    }
+  }, [establishmentId]);
+
+  useEffect(() => {
+    if (selectedMesa) {
+      localStorage.setItem("up_t_selected_mesa", selectedMesa);
+    }
+  }, [selectedMesa]);
+
+  useEffect(() => {
+    if (selectedMesa && establishmentId) {
+      fetchTableOrders();
+      const channel = supabase.channel(`table-orders-${selectedMesa}`)
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'drink_orders',
+          filter: `mesa=eq.${selectedMesa}`
+        }, () => fetchTableOrders())
+        .subscribe();
+      return () => supabase.removeChannel(channel);
+    }
+  }, [selectedMesa, establishmentId]);
+
+  const fetchTableOrders = async () => {
+    const { data } = await supabase.from('drink_orders')
+      .select('*')
+      .eq('mesa', selectedMesa)
+      .eq('establishment_id', establishmentId)
+      .order('created_at', { ascending: false });
+    if (data) setTableOrders(data);
+  };
+
+  const fetchMyOrders = async (ids) => {
+    const { data } = await supabase.from('drink_orders').select('*').in('id', ids).order('created_at', { ascending: false });
+    if (data) setMyOrders(data);
+  };
+
+  const subscribeToMyOrders = (ids) => {
+    const channel = supabase.channel('my-orders-status')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'drink_orders' }, payload => {
+        if (ids.includes(payload.new.id)) {
+          setMyOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new : o));
+        }
+      }).subscribe();
+    return () => supabase.removeChannel(channel);
+  };
+
   // ─── PIN GATE ────────────────────────────────────────────────────────────
-  const [pinVerified, setPinVerified] = useState(() => {
+  const [pinVerified, setPinVerified] = useState(false);
+
+  useEffect(() => {
+    if (!establishmentId) return;
     try {
       const stored = JSON.parse(localStorage.getItem(PIN_SESSION_KEY) || "null");
-      if (!stored) return false;
-      const valid = stored.estId === String(establishmentId) && Date.now() < stored.until;
-      return valid;
-    } catch { return false; }
-  });
+      if (stored && stored.estId === String(establishmentId) && Date.now() < stored.until) {
+        setPinVerified(true);
+      }
+    } catch { }
+  }, [establishmentId]);
   const [pinInput, setPinInput] = useState(["", "", "", ""]);
   const [pinError, setPinError] = useState("");
   const [pinLoading, setPinLoading] = useState(false);
@@ -396,8 +468,17 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  const addToQueue = async (track) => {
+  const addToQueue = async (track, forcedMesa = null) => {
     if (added.has(track.id)) return;
+
+    const currentMesa = forcedMesa || selectedMesa;
+
+    if (!currentMesa) {
+      setPendingSongAfterMesa(track);
+      setShowOrderModal(true);
+      setToast("📍 Selecciona tu mesa para pedir la canción");
+      return;
+    }
 
     const lastRequest = localStorage.getItem("last_song_request");
     const now = Date.now();
@@ -421,7 +502,7 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
 
     // Call onSongRequest and store the returned queueRowId
     try {
-      const queueRowId = await onSongRequest({ ...track, is_cliente: true });
+      const queueRowId = await onSongRequest({ ...track, is_cliente: true, mesa: currentMesa });
       localStorage.setItem("last_song_request", now.toString());
       setLastAddedSongId(queueRowId); // Store the ID to find its position later
     } catch (err) {
@@ -458,8 +539,10 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
     }
   }, [queue, lastAddedSongId, currentIdx]);
 
-  const handleSendMsg = async () => {
+  const handleSendMsg = async (forcedMesa = null) => {
     if (!msgText.trim()) return;
+
+    const currentMesa = forcedMesa || selectedMesa;
 
     const lastMsg = localStorage.getItem("last_message_sent");
     const now = Date.now();
@@ -471,6 +554,13 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
       return;
     }
 
+    if (!currentMesa) {
+      setPendingMsgAfterMesa(true);
+      setShowOrderModal(true);
+      setToast("📍 Selecciona tu mesa para enviar el mensaje");
+      return;
+    }
+
     setSendingMsg(true);
     try {
       const { error } = await supabase.from("screen_messages").insert([{
@@ -478,6 +568,7 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
         author: msgAuthor || "Invitado",
         establishment_id: establishmentId,
         status: "pending",
+        mesa: currentMesa,
       }]);
       if (error) throw error;
       setToast("Mensaje enviado a moderación ✨");
@@ -490,6 +581,59 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
       setSendingMsg(false);
     }
   };
+
+  const addToCart = (drink) => setCart([...cart, drink]);
+  const cartTotal = cart.reduce((acc, curr) => acc + curr.price, 0);
+  const handleEnviarPedido = async () => {
+    if (!selectedMesa) { setShowMesaError(true); return; }
+    if (cart.length === 0) { setToast("🛒 Carrito vacío"); return; }
+
+    const orderData = {
+      mesa: selectedMesa,
+      items: cart.map(item => ({ id: item.id, name: item.name, price: item.price })),
+      total: cartTotal,
+      establishment_id: establishmentId,
+      status: 'pending'
+    };
+
+    try {
+      const { data: newOrder, error } = await supabase.from('drink_orders').insert([orderData]).select().single();
+      if (error) throw error;
+      
+      // Guardar ID para seguimiento
+      const savedIds = JSON.parse(localStorage.getItem("up_t_my_order_ids") || "[]");
+      const updatedIds = [newOrder.id, ...savedIds].slice(0, 10);
+      localStorage.setItem("up_t_my_order_ids", JSON.stringify(updatedIds));
+      setMyOrders(prev => [newOrder, ...prev]);
+
+      const updatedRecent = [orderData, ...recentOrders].slice(0, 5);
+      setRecentOrders(updatedRecent);
+      localStorage.setItem("up_t_recent_orders", JSON.stringify(updatedRecent));
+
+      setToast(`Pedido enviado a la Mesa ${selectedMesa} ✨`);
+      setShowOrderModal(false);
+      setCart([]);
+      setSelectedMesa(null);
+    } catch (err) {
+      console.error("Error sending order:", err);
+      setToast("Error al enviar pedido");
+    }
+  };
+
+  const repeatOrder = (order) => {
+    setCart(order.items);
+    setSelectedMesa(order.mesa);
+    setToast("🛒 Carrito restaurado");
+  };
+
+  const drinks = [
+    { id: 1, name: "Cerveza Club Colombia", price: 8000, img: "https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=400&q=80" },
+    { id: 2, name: "Aguardiente Antioqueño", price: 95000, img: "https://images.unsplash.com/photo-1569701813229-33284b643e3c?w=400&q=80" },
+    { id: 3, name: "Ron Medellín 8 Años", price: 85000, img: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=400&q=80" },
+    { id: 4, name: "Vodka Absolut", price: 120000, img: "https://images.unsplash.com/photo-1550985543-575662704043?w=400&q=80" },
+    { id: 5, name: "Vino Tinto Reserva", price: 110000, img: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=400&q=80" },
+    { id: 6, name: "Agua Manantial", price: 5000, img: "https://images.unsplash.com/photo-1559839914-17aae19cea9e?w=400&q=80" },
+  ];
 
   const bg = "#0a0a0a";
   const surface = "#161616";
@@ -739,6 +883,14 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
         </div>
       )}
 
+      {/* BOTÓN PEDIDO (BEBIDA) */}
+      <button
+        onClick={() => setShowOrderModal(true)}
+        style={{ position: "fixed", bottom: 86, right: 20, width: 56, height: 56, borderRadius: "50%", background: "#00C853", color: "#000", border: "none", boxShadow: "0 8px 24px rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 100, fontSize: 24 }}
+      >
+        🍺
+      </button>
+
       {/* BOTÓN MENSAJE */}
       <button
         onClick={() => setShowMsgModal(true)}
@@ -778,9 +930,195 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
         </div>
       )}
 
+      {/* MODAL PEDIDOS OVERHAUL */}
+      {showOrderModal && (
+        <div style={{
+          position: "fixed", top: 0, left: "50%", width: "100%", maxWidth: 480, height: "100%", 
+          background: "#0d0d0d", zIndex: 2000, display: "flex", flexDirection: "column",
+          animation: "slideUp 0.3s ease-out forwards", fontFamily: "system-ui, -apple-system, sans-serif"
+        }}>
+          {/* HEADER */}
+          <div style={{ display: "flex", alignItems: "center", padding: "20px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+            <button onClick={() => setShowOrderModal(false)} style={{ background: "none", border: "none", color: "#fff", fontSize: 24, cursor: "pointer", marginRight: 16 }}>←</button>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 18, fontWeight: "bold", color: "#fff" }}>Mesa {selectedMesa || "..."}</div>
+              <div style={{ fontSize: 12, color: muted }}>{selectedMesa ? "Gestión de pedido en curso" : "Selecciona tu mesa para comenzar"}</div>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, overflowY: "auto", padding: "16px", paddingBottom: 120 }}>
+            {/* SECCIÓN 1: MI PEDIDO ACTUAL */}
+            {selectedMesa && (
+              <div style={{ background: surface, borderRadius: 20, padding: 20, border: `1px solid ${border}`, marginBottom: 24 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>MI PEDIDO ACTUAL</div>
+                  <div style={{ fontSize: 11, color: "#1db954", background: "rgba(29,185,84,0.1)", padding: "4px 10px", borderRadius: 20 }}>EN VIVO</div>
+                </div>
+                
+                {tableOrders.filter(o => o.status !== 'cancelled').length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "20px 0", color: muted, fontSize: 13 }}>No has pedido nada aún</div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {tableOrders.filter(o => o.status !== 'cancelled').map(ord => (
+                      <div key={ord.id} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        {ord.items.map((it, i) => (
+                          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 500, color: it.status === 'completed' ? muted : '#fff', textDecoration: it.status === 'completed' ? 'line-through' : 'none' }}>
+                                {it.name} <span style={{ color: "#1db954", marginLeft: 4 }}>x1</span>
+                              </div>
+                              <div style={{ fontSize: 10, color: muted }}>${it.price.toLocaleString()}</div>
+                            </div>
+                            <div style={{ 
+                              fontSize: 9, fontWeight: 800, padding: "3px 8px", borderRadius: 4,
+                              background: it.status === 'completed' ? 'rgba(29,185,84,0.1)' : 'rgba(239,159,39,0.1)',
+                              color: it.status === 'completed' ? '#1db954' : '#EF9F27'
+                            }}>
+                              {it.status === 'completed' ? 'ENTREGADO' : 'PENDIENTE'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                    <div style={{ borderTop: `1px solid ${border}`, paddingTop: 14, marginTop: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>TOTAL MESA</span>
+                      <span style={{ fontSize: 20, fontWeight: 900, color: "#1db954", textShadow: "0 0 15px rgba(29,185,84,0.3)" }}>
+                        ${tableOrders.filter(o => o.status !== 'cancelled').reduce((acc, o) => acc + o.total, 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SECCIÓN 2: AGREGAR AL PEDIDO (ACORDEÓN) */}
+            <details open={!selectedMesa} style={{ marginBottom: 20 }}>
+              <summary style={{ listStyle: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0" }}>
+                <span style={{ fontSize: 15, fontWeight: "bold", color: "#fff" }}>➕ Agregar al pedido</span>
+                <span style={{ color: muted }}>▼</span>
+              </summary>
+              
+              <div style={{ padding: "12px 0" }}>
+                {/* SELECTOR DE MESA */}
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 13, color: muted, marginBottom: 12 }}>📍 ¿En qué mesa estás?</div>
+                  <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 10, scrollbarWidth: "none" }}>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(m => (
+                      <div 
+                        key={m}
+                        onClick={() => { 
+                          setSelectedMesa(m); 
+                          setShowMesaError(false);
+                          if (pendingSongAfterMesa) {
+                            addToQueue(pendingSongAfterMesa, m);
+                            setPendingSongAfterMesa(null);
+                          }
+                          if (pendingMsgAfterMesa) {
+                            handleSendMsg(m);
+                            setPendingMsgAfterMesa(false);
+                          }
+                        }}
+                        style={{
+                          flexShrink: 0, width: 80, height: 40, borderRadius: 25, 
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          background: selectedMesa === m ? "rgba(29,185,84,0.2)" : "rgba(255,255,255,0.05)",
+                          border: `2px solid ${selectedMesa === m ? "#1db954" : "transparent"}`,
+                          color: selectedMesa === m ? "#1db954" : "#fff",
+                          fontWeight: 700, cursor: "pointer", transition: "0.2s"
+                        }}
+                      >
+                        Mesa {m}
+                      </div>
+                    ))}
+                  </div>
+                  {showMesaError && <div style={{ color: "#E24B4A", fontSize: 11, marginTop: 8 }}>⚠️ Selecciona tu mesa primero</div>}
+                </div>
+
+                {/* CUADRÍCULA DE BEBIDAS */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  {drinks.map(drink => (
+                    <div key={drink.id} style={{ background: surface, borderRadius: 18, overflow: "hidden", border: `1px solid ${border}` }}>
+                      <div style={{ position: "relative", height: 120 }}>
+                        <img src={drink.img} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
+                        <div style={{ position: "absolute", bottom: 8, left: 8, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", padding: "4px 8px", borderRadius: 8, fontSize: 11, fontWeight: 700, color: "#fff" }}>
+                          ${drink.price.toLocaleString()}
+                        </div>
+                      </div>
+                      <div style={{ padding: 12 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#fff", height: 32, overflow: "hidden", marginBottom: 10 }}>{drink.name}</div>
+                        <button 
+                          onClick={() => {
+                            setCart([...cart, drink]);
+                            setToast(`+ ${drink.name}`);
+                          }}
+                          style={{ width: "100%", padding: "8px", borderRadius: 10, border: `1px solid ${border}`, background: "transparent", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                          onMouseEnter={e => e.currentTarget.style.borderColor = "#1db954"}
+                          onMouseLeave={e => e.currentTarget.style.borderColor = border}
+                        >
+                          + Agregar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </details>
+
+            {/* SECCIÓN 3: HISTORIAL */}
+            <details style={{ marginTop: 20 }}>
+              <summary style={{ listStyle: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", opacity: 0.6 }}>
+                <span style={{ fontSize: 13, fontWeight: "bold", color: "#fff" }}>📜 Historial de la noche</span>
+                <span style={{ color: muted }}>▼</span>
+              </summary>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+                {tableOrders.filter(o => o.status === 'completed').map(ord => (
+                  <div key={ord.id} style={{ padding: 12, borderRadius: 12, background: "rgba(255,255,255,0.03)", border: `1px solid ${border}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                      <span style={{ fontSize: 10, color: muted }}>{new Date(ord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span style={{ fontSize: 9, color: "#1db954", fontWeight: 800 }}>COMPLETADO</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "#ccc" }}>{ord.items.map(i => i.name).join(", ")}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4 }}>${ord.total.toLocaleString()}</div>
+                  </div>
+                ))}
+                {tableOrders.filter(o => o.status === 'completed').length === 0 && (
+                  <div style={{ fontSize: 11, color: muted, textAlign: "center", padding: 10 }}>Sin historial disponible</div>
+                )}
+              </div>
+            </details>
+          </div>
+
+          {/* BARRA INFERIOR FIJA */}
+          {cart.length > 0 && (
+            <div style={{
+              position: "absolute", bottom: 0, left: 0, width: "100%", padding: "20px 24px", 
+              background: "#161616", borderTop: `1px solid ${border}`, boxSizing: "border-box",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              animation: "slideInUp 0.3s ease"
+            }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: "bold", color: "#1db954" }}>🛒 {cart.length} ítems</div>
+                <div style={{ fontSize: 16, fontWeight: "900", color: "#fff" }}>${cart.reduce((a, b) => a + b.price, 0).toLocaleString()}</div>
+              </div>
+              <button 
+                onClick={handleEnviarPedido}
+                style={{
+                  background: selectedMesa ? "#1db954" : "#333", color: "#000", border: "none", 
+                  padding: "14px 24px", borderRadius: 12, fontWeight: "900", fontSize: 14, 
+                  cursor: selectedMesa ? "pointer" : "not-allowed"
+                }}
+              >
+                Confirmar adición
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes modalIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        @keyframes slideUp { from { transform: translateX(-50%) translateY(100%); } to { transform: translateX(-50%) translateY(0); } }
       `}</style>
     </div>
   );
