@@ -39,6 +39,7 @@ export default function TvViewVideo({
   queue = [],
   currentIdx = 0,
   onTrackEnd,
+  onVideoError,
   volume = 50,
   ads = [],
   establishmentId,
@@ -62,6 +63,7 @@ export default function TvViewVideo({
   const [pin, setPin] = useState(null);
 
   const onTrackEndRef = useRef(onTrackEnd);
+  const onVideoErrorRef = useRef(onVideoError);
   const volumeRef = useRef(volume);
   const startedRef = useRef(started);
   const adVideoRef = useRef(null);
@@ -70,6 +72,7 @@ export default function TvViewVideo({
   const establishmentIdRef = useRef(establishmentId);
 
   useEffect(() => { onTrackEndRef.current = onTrackEnd; }, [onTrackEnd]);
+  useEffect(() => { onVideoErrorRef.current = onVideoError; }, [onVideoError]);
   useEffect(() => { volumeRef.current = volume; }, [volume]);
   useEffect(() => { startedRef.current = started; }, [started]);
   useEffect(() => { trackRef.current = track; }, [track]);
@@ -256,13 +259,7 @@ export default function TvViewVideo({
               if (error) console.error("Error notificando a la mesa:", error);
             });
           }
-          if (t.queueRowId) {
-            supabase.from("queue").delete().eq("id", t.queueRowId).then(() => {
-              onTrackEndRef.current();
-            });
-          } else {
-            onTrackEndRef.current();
-          }
+          onVideoErrorRef.current?.(t.queueRowId);
         },
       },
     });

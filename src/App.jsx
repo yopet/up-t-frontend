@@ -87,6 +87,7 @@ export default function App() {
 
   // 3. FETCHERS
   const fetchQueue = useCallback(async () => {
+    console.log("Fetching queue...", selectedEstId);
     if (!selectedEstId) return;
     const { data } = await supabase
       .from("queue")
@@ -289,6 +290,12 @@ export default function App() {
     }
   };
 
+  const handleVideoError = async (rowId) => {
+    if (!rowId) return;
+    await supabase.from("queue").update({ is_approved: false }).eq("id", rowId);
+    setQueue(prev => prev.filter(item => item.queueRowId !== rowId));
+  };
+
   return (
     <BrowserRouter>
       <Routes>
@@ -313,6 +320,7 @@ export default function App() {
               currentIdx={currentIdx}
               volume={volume}
               onTrackEnd={handleTrackEnd}
+              onVideoError={handleVideoError}
               ads={ads}
               establishmentId={selectedEstId}
             />
