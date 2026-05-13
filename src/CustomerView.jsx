@@ -215,7 +215,7 @@ function EqBars() {
 
 function Toast({ msg, onDone }) {
   useEffect(() => {
-    const t = setTimeout(onDone, 2400);
+    const t = setTimeout(onDone, 5000);
     return () => clearTimeout(t);
   }, []);
   return (
@@ -292,6 +292,23 @@ export default function CustomerView({ onSongRequest, queue = [], currentIdx = 0
           table: 'drink_orders',
           filter: `mesa=eq.${selectedMesa}`
         }, () => fetchTableOrders())
+        .subscribe();
+      return () => supabase.removeChannel(channel);
+    }
+  }, [selectedMesa, establishmentId]);
+
+  useEffect(() => {
+    if (selectedMesa && establishmentId) {
+      const channel = supabase.channel(`video-errors-${selectedMesa}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'screen_messages',
+        }, (payload) => {
+          if (payload.new.status === 'video_error' && String(payload.new.mesa) === String(selectedMesa)) {
+            setToast(payload.new.text);
+          }
+        })
         .subscribe();
       return () => supabase.removeChannel(channel);
     }

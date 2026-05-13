@@ -25,7 +25,7 @@ function QRCode({ url, size = 110 }) {
       width: size * window.devicePixelRatio,
       margin: 1,
       color: { dark: "#ffffff", light: "#00000000" },
-    }).catch(() => {});
+    }).catch(() => { });
   }, [url, size]);
   return (
     <canvas
@@ -66,10 +66,14 @@ export default function TvViewVideo({
   const startedRef = useRef(started);
   const adVideoRef = useRef(null);
   const lastVideoIdRef = useRef(null);
+  const trackRef = useRef(track);
+  const establishmentIdRef = useRef(establishmentId);
 
   useEffect(() => { onTrackEndRef.current = onTrackEnd; }, [onTrackEnd]);
   useEffect(() => { volumeRef.current = volume; }, [volume]);
   useEffect(() => { startedRef.current = started; }, [started]);
+  useEffect(() => { trackRef.current = track; }, [track]);
+  useEffect(() => { establishmentIdRef.current = establishmentId; }, [establishmentId]);
 
   // --- PIN ---
   useEffect(() => {
@@ -237,7 +241,29 @@ export default function TvViewVideo({
         onStateChange: (e) => {
           if (e.data === window.YT.PlayerState.ENDED) onTrackEndRef.current();
         },
-        onError: () => { onTrackEndRef.current(); },
+        onError: () => {
+          const t = trackRef.current;
+          const eid = establishmentIdRef.current;
+          console.log(`Error al reproducir: "${t.title}" — Mesa: ${t.mesa || "N/A"}`);
+          if (t.mesa && eid) {
+            supabase.from("screen_messages").insert([{
+              text: `Error al reproducir: "${t.title}", por favor intentá reproducir otra canción`,
+              author: "Sistema",
+              establishment_id: eid,
+              status: "video_error",
+              mesa: Number(t.mesa),
+            }]).then(({ error }) => {
+              if (error) console.error("Error notificando a la mesa:", error);
+            });
+          }
+          if (t.queueRowId) {
+            supabase.from("queue").delete().eq("id", t.queueRowId).then(() => {
+              onTrackEndRef.current();
+            });
+          } else {
+            onTrackEndRef.current();
+          }
+        },
       },
     });
   };
@@ -442,7 +468,7 @@ export default function TvViewVideo({
           transition: "opacity 0.5s",
         }}
       >
-        
+
         <div
           style={{
             background: "rgba(0,0,0,0.22)",
@@ -456,51 +482,51 @@ export default function TvViewVideo({
           }}
         >
           <div
-          style={{
-            fontSize: 11,
-            color: "white",
-            textAlign: "center",
-          }}
-        >
-          ¿Quieres escuchar algo?
-          <br />
-          <span style={{ fontSize: 9, color: "white", letterSpacing: "0.04em" }}>
-            Escanea y elige tu canción
-          </span>
-        </div>
+            style={{
+              fontSize: 11,
+              color: "white",
+              textAlign: "center",
+            }}
+          >
+            ¿Quieres escuchar algo?
+            <br />
+            <span style={{ fontSize: 9, color: "white", letterSpacing: "0.04em" }}>
+              Escanea y elige tu canción
+            </span>
+          </div>
           {qrReady && (
             <QRCode url={track.qr || SCAN_URL} size={160} key={track.id} />
           )}
-           {pin && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-            <div style={{ fontSize: 7, color: "white", letterSpacing: "0.2em", textTransform: "uppercase" }}>
-              e ingresa el PIN
-            </div>
-            <div style={{
-              fontSize: 32,
-              fontWeight: 900,
-              color: "white",
-              letterSpacing: "0.10em",
-              fontFamily: "'Courier New', monospace",
-              lineHeight: 1,
-            }}>
-              {pin.split("").join(" ")}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}>
+          {pin && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              <div style={{ fontSize: 7, color: "white", letterSpacing: "0.2em", textTransform: "uppercase" }}>
+                e ingresa el PIN
+              </div>
               <div style={{
-                width: 5, height: 5, borderRadius: "50%",
-                background: "#1d9e75",
-                animation: "pinBlink 1.4s ease-in-out infinite",
-              }} />
-              <div style={{ fontSize: 7, color: "white", letterSpacing: "0.06em" }}>
-                activo hoy
+                fontSize: 32,
+                fontWeight: 900,
+                color: "white",
+                letterSpacing: "0.10em",
+                fontFamily: "'Courier New', monospace",
+                lineHeight: 1,
+              }}>
+                {pin.split("").join(" ")}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}>
+                <div style={{
+                  width: 5, height: 5, borderRadius: "50%",
+                  background: "#1d9e75",
+                  animation: "pinBlink 1.4s ease-in-out infinite",
+                }} />
+                <div style={{ fontSize: 7, color: "white", letterSpacing: "0.06em" }}>
+                  activo hoy
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
         </div>
 
-       
+
 
       </div>
 
