@@ -225,7 +225,8 @@ const OrderPanel = ({
   screenMessages = [],
   handleApproveSong,
   handleMessageAction,
-  establishmentId
+  establishmentId,
+  newOrderMesa
 }) => {
   const [showManualOrder, setShowManualOrder] = useState(null); // table number
   const [manualCart, setManualCart] = useState([]);
@@ -404,7 +405,13 @@ const OrderPanel = ({
           <div style={{ display: 'flex', gap: 12 }}>
             <button
               onClick={async () => {
-                for (const id of detail.orderIds) await handleOrderAction(id, 'completed');
+                for (const id of detail.orderIds) {
+                  const order = orders.find(o => o.id === id);
+                  if (order && order.items) {
+                    const newItems = order.items.map(it => ({ ...it, status: 'completed' }));
+                    await supabase.from('drink_orders').update({ items: newItems, status: 'completed' }).eq('id', id);
+                  }
+                }
                 setSelectedTableDetail(null);
               }}
               style={{ flex: 2, background: C.green, color: '#000', border: 'none', borderRadius: 10, padding: '14px', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}
@@ -422,6 +429,17 @@ const OrderPanel = ({
             >
               Cancelar pedido
             </button>
+            <button
+              onClick={async () => {
+                if (confirm('¿Cerrar mesa? Los pedidos se marcarán como vendidos y ya no aparecerán en la mesa.')) {
+                  for (const id of detail.orderIds) await supabase.from('drink_orders').update({ status: 'closed' }).eq('id', id);
+                  setSelectedTableDetail(null);
+                }
+              }}
+              style={{ flex: 1, background: 'transparent', color: C.amber, border: `1px solid ${C.amber}`, borderRadius: 10, padding: '14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Cerrar mesa
+            </button>
           </div>
         </div>
       </div>
@@ -432,31 +450,37 @@ const OrderPanel = ({
     <div style={styles.panel}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div style={{ ...styles.sectionLabel, color: C.green, marginBottom: 0 }}>Gestión de Mesas</div>
-        <div style={{ fontSize: 11, color: C.muted }}>{mesas.filter(m => tableGroups[m]?.items.some(it => it.status === 'pending')).length} mesas activas</div>
+        <div style={{ fontSize: 11, color: C.muted }}>{mesas.filter(m => tableGroups[m]?.items.some(it => it.status !== 'completed')).length} mesas activas</div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
         {mesas.map(m => {
           const group = tableGroups[m] || { items: [], songs: [], messages: [], total: 0 };
-          const pendingItems = group.items.filter(it => it.status === 'pending');
+          const pendingItems = group.items.filter(it => it.status !== 'completed');
           const hasActivity = group.items.length > 0 || group.songs.length > 0 || group.messages.length > 0;
 
+          const isNewOrder = newOrderMesa === m;
           return (
             <div
               key={m}
-              onClick={() => hasActivity && setSelectedTableDetail(m)}
+              onClick={() => { if (hasActivity) { setSelectedTableDetail(m); setNewOrderMesa(null); } }}
               style={{
                 background: C.panel2,
                 borderRadius: 14,
-                border: `1px solid ${hasActivity ? C.green + '40' : C.border}`,
+                border: isNewOrder ? `2px solid #e24b4a` : hasActivity ? `1px solid ${C.green}40` : C.border,
                 padding: 16,
                 cursor: hasActivity ? 'pointer' : 'default',
                 transition: '0.2s',
                 display: 'flex',
                 flexDirection: 'column',
+                boxShadow: isNewOrder ? '0 0 0 0 rgba(226,75,74,0), 0 0 8px 2px rgba(226,75,74,0.4)' : 'none',
+                animation: isNewOrder ? 'pulseMesa 1.5s ease-in-out infinite' : 'none',
                 justifyContent: 'space-between',
                 minHeight: 140,
-                boxShadow: hasActivity ? `0 4px 20px ${C.green}10` : 'none'
+                boxShadow: isNewOrder ? `0 0 0 0 rgba(226,75,74,0), 0 0 20px 10px rgba(226,75,74,0.3), 0 0 40px 20px rgba(226,75,74,0.1)` : hasActivity ? `0 4px 20px ${C.green}10` : 'none',
+                animation: isNewOrder ? 'pulseMesa 1.5s ease-in-out infinite' : 'none',
+                position: 'relative',
+                overflow: 'visible'
               }}
             >
               <div>
@@ -592,7 +616,7 @@ const ReportesPanel = ({ C, queue, clientStats, screenMessages, ads, orders, cre
   const totalMessagesApproved = screenMessages?.filter(m => m.status === 'approved').length || 0;
   const totalAds = ads?.length || 0;
   const totalPendingOrders = orders?.filter(o => o.status === 'pending').length || 0;
-  const totalCompletedOrders = orders?.filter(o => o.status === 'completed').length || 0;
+  const totalCompletedOrders = orders?.filter(o => o.status === 'completed' || o.status === 'closed').length || 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -822,7 +846,7 @@ const QueuePanel = ({ approvedQueue, currentIdx, onPlay, onRemove, queue, onClea
           <div style={{ fontSize: 10, color: C.muted }}>{song.artist}</div>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
-          <button onClick={() => onPlay(idx)} style={{ ...styles.actionBtn, background: C.panel2, width: 24, height: 24 }}><IconPlaySmall /></button>
+          <button onClick={() => onPlay(idx)} style={{ ...styles.actionBtn, background: C.green, color: '#000', width: 24, height: 24 }}><IconPlaySmall /></button>
           <button onClick={() => onRemove(queue.indexOf(song))} style={{ ...styles.actionBtn, background: 'transparent', color: C.red, width: 24, height: 24 }}><IconTrash /></button>
         </div>
       </div>
@@ -831,20 +855,21 @@ const QueuePanel = ({ approvedQueue, currentIdx, onPlay, onRemove, queue, onClea
 );
 
 
-const SidebarItem = ({ icon: Icon, label, tabId, activeTab, setActiveTab }) => {
+const SidebarItem = ({ icon: Icon, label, tabId, activeTab, setActiveTab, collapsed }) => {
   const active = activeTab === tabId;
   return (
     <div
       onClick={() => setActiveTab(tabId)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10,
+        display: 'flex', alignItems: 'center', gap: 12, padding: collapsed ? '12px' : '12px 16px', borderRadius: 10,
         cursor: 'pointer', background: active ? 'rgba(29,185,84,0.1)' : 'transparent',
         color: active ? C.green : C.text, transition: '0.2s', marginBottom: 4,
-        border: active ? `0.5px solid ${C.green}30` : '0.5px solid transparent'
+        border: active ? `0.5px solid ${C.green}30` : '0.5px solid transparent',
+        justifyContent: collapsed ? 'center' : 'flex-start'
       }}
     >
       <Icon />
-      <span style={{ fontSize: 13, fontWeight: active ? 600 : 400 }}>{label}</span>
+      {!collapsed && <span style={{ fontSize: 13, fontWeight: active ? 600 : 400 }}>{label}</span>}
     </div>
   );
 };
@@ -869,6 +894,12 @@ export default function AdminView({
   const [approvedMessagesCount, setApprovedMessagesCount] = useState(0);
   const [selectedTableDetail, setSelectedTableDetail] = useState(null);
 
+  useEffect(() => {
+    if (selectedTableDetail && newOrderMesa) {
+      setNewOrderMesa(null);
+    }
+  }, [selectedTableDetail]);
+
   const updateItemStatus = async (orderId, itemIndex, newStatus) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
@@ -884,6 +915,17 @@ export default function AdminView({
     }).eq('id', orderId);
 
     if (error) console.error("Error actualizando item:", error);
+  };
+
+  const deliverAllItems = async (orderId) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order || !order.items) return;
+    const newItems = order.items.map(it => ({ ...it, status: 'completed' }));
+    const { error } = await supabase.from('drink_orders').update({
+      items: newItems,
+      status: 'completed'
+    }).eq('id', orderId);
+    if (error) console.error("Error al entregar todos:", error);
   };
 
   const cancelItem = async (orderId, itemIndex, songId, type) => {
@@ -910,7 +952,9 @@ export default function AdminView({
   const [pendingFilter, setPendingFilter] = useState('all'); // ← NUEVO
   const [searchSource, setSearchSource] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [orders, setOrders] = useState([]); // ← NUEVO
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [newOrderMesa, setNewOrderMesa] = useState(null);
+  const [orders, setOrders] = useState([]);
 
   // --- LÓGICA DE CRÉDITOS UP-T ---
   const [credits, setCredits] = useState(0);
@@ -998,6 +1042,7 @@ export default function AdminView({
           if (payload.eventType === 'INSERT') {
             setOrders(prev => [payload.new, ...prev]);
             new Audio("https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3").play().catch(() => { });
+            if (payload.new.mesa) mostrarNuevoPedido(payload.new.mesa);
           } else if (payload.eventType === 'UPDATE') {
             setOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new : o));
           } else if (payload.eventType === 'DELETE') {
@@ -1007,6 +1052,10 @@ export default function AdminView({
       }).subscribe();
     return () => supabase.removeChannel(channel);
   }, [establishmentId]);
+
+  const mostrarNuevoPedido = (mesaNum) => {
+    setNewOrderMesa(mesaNum);
+  };
 
   // ─── Aprobar canción con crédito ──────────────────────────────────────────
   const handleApproveSong = async (song) => {
@@ -1303,40 +1352,46 @@ export default function AdminView({
     <div style={{ display: 'flex', height: '100vh', background: C.bg, color: C.text, fontFamily: 'system-ui, sans-serif', overflow: 'hidden' }}>
 
       {/* ── SIDEBAR ────────────────────────────────────────────────────────── */}
-      <aside style={{ width: 240, background: C.panel, borderRight: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <div style={{ padding: '24px', borderBottom: `0.5px solid ${C.border}` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+      <aside style={{ width: sidebarCollapsed ? 72 : 240, background: C.panel, borderRight: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s ease', overflow: 'hidden' }}>
+        <div style={{ padding: sidebarCollapsed ? '24px 12px' : '24px', borderBottom: `0.5px solid ${C.border}`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, justifyContent: sidebarCollapsed ? 'center' : 'flex-start' }}>
             <img src="/logo.png" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} alt="Logo" />
-            <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.04em' }}>
-              Up-Track
-            </span>
+            {!sidebarCollapsed && <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.04em' }}>Up-Track</span>}
           </div>
-          <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: '0.1em' }}>PRO MANAGEMENT</div>
+          {!sidebarCollapsed && <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: '0.1em' }}>PRO MANAGEMENT</div>}
         </div>
 
         <nav style={{ flex: 1, padding: '20px 12px', overflowY: 'auto' }}>
-          <SidebarItem icon={IconHome} label="Pedidos" tabId="dashboard" activeTab={activeTab} setActiveTab={setActiveTab} />
-          <SidebarItem icon={IconBarChart} label="Reportes" tabId="reportes" activeTab={activeTab} setActiveTab={setActiveTab} />
-          <SidebarItem icon={IconMusic} label="Reproducción" tabId="queue" activeTab={activeTab} setActiveTab={setActiveTab} />
-          <SidebarItem icon={IconAd} label="Publicidad" tabId="ads" activeTab={activeTab} setActiveTab={setActiveTab} />
-          <div style={{ margin: '16px 16px 8px', fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: '0.1em' }}>SISTEMA</div>
-          <SidebarItem icon={IconSettings} label="Configuración" tabId="settings" activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SidebarItem icon={IconHome} label="Pedidos" tabId="dashboard" activeTab={activeTab} setActiveTab={setActiveTab} collapsed={sidebarCollapsed} />
+          <SidebarItem icon={IconBarChart} label="Reportes" tabId="reportes" activeTab={activeTab} setActiveTab={setActiveTab} collapsed={sidebarCollapsed} />
+          <SidebarItem icon={IconMusic} label="Reproducción" tabId="queue" activeTab={activeTab} setActiveTab={setActiveTab} collapsed={sidebarCollapsed} />
+          <SidebarItem icon={IconAd} label="Publicidad" tabId="ads" activeTab={activeTab} setActiveTab={setActiveTab} collapsed={sidebarCollapsed} />
+          {!sidebarCollapsed && <div style={{ margin: '16px 16px 8px', fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: '0.1em' }}>SISTEMA</div>}
+          <SidebarItem icon={IconSettings} label="Configuración" tabId="settings" activeTab={activeTab} setActiveTab={setActiveTab} collapsed={sidebarCollapsed} />
         </nav>
 
-        <div style={{ padding: '16px 20px', borderTop: `0.5px solid ${C.border}`, background: '#0d0d0d' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: C.panel2, border: `0.5px solid ${C.border2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
-              🏢
+        <div style={{ padding: sidebarCollapsed ? '16px 12px' : '16px 20px', borderTop: `0.5px solid ${C.border}`, background: '#0d0d0d' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+              {sidebarCollapsed ? (
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: C.panel2, border: `0.5px solid ${C.border2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🏢</div>
+              ) : (
+                <>
+                  <div style={{ width: 34, height: 34, borderRadius: 10, background: C.panel2, border: `0.5px solid ${C.border2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🏢</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{establishmentName || 'Local Bogotá'}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+                      <div style={{ width: 5, height: 5, background: C.green, borderRadius: '50%', boxShadow: `0 0 6px ${C.green}` }} />
+                      <div style={{ fontSize: 9, color: C.muted, fontWeight: 600, letterSpacing: '0.01em' }}>Premium</div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {establishmentName || 'Local Bogotá'}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-                <div style={{ width: 5, height: 5, background: C.green, borderRadius: '50%', boxShadow: `0 0 6px ${C.green}` }} />
-                <div style={{ fontSize: 9, color: C.muted, fontWeight: 600, letterSpacing: '0.01em' }}>Suscripción Premium</div>
-              </div>
-            </div>
+            {sidebarCollapsed && <div style={{ width: 12 }} />}
+            <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{ background: C.panel2, border: 'none', borderRadius: 6, padding: '8px', cursor: 'pointer', color: C.text, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {sidebarCollapsed ? '→' : '←'}
+            </button>
           </div>
         </div>
       </aside>
@@ -1424,6 +1479,7 @@ export default function AdminView({
                 handleApproveSong={handleApproveSong}
                 handleMessageAction={handleMessageAction}
                 establishmentId={establishmentId}
+                newOrderMesa={newOrderMesa}
               />
             </div>
           )}
@@ -1510,6 +1566,11 @@ export default function AdminView({
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        @keyframes pulseMesa {
+          0% { box-shadow: 0 0 0 0 rgba(226,75,74,0.7), 0 0 20px 10px rgba(226,75,74,0.3); }
+          50% { box-shadow: 0 0 0 15px rgba(226,75,74,0), 0 0 30px 20px rgba(226,75,74,0.2); }
+          100% { box-shadow: 0 0 0 0 rgba(226,75,74,0), 0 0 20px 10px rgba(226,75,74,0.3); }
         }
       `}</style>
     </div>
